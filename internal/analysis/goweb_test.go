@@ -76,6 +76,18 @@ func TestGowebCallGraph(t *testing.T) {
 		}
 	})
 
+	t.Run("navigation", func(t *testing.T) {
+		checkNavigation(t, r, []navCase{
+			{"POST /{lang}/sign-in", "GET /{lang}/home", "redirect"},
+			{"GET /{lang}/home", "GET /{lang}/groups", "link"},
+			{"GET /{lang}/groups", "GET /{lang}/groups/{id}", "link"},
+			{"GET /{lang}/groups", "GET /{lang}/account/settings", "link"},
+			{"GET /{lang}/admin", "GET /{lang}/admin/users", "link"},
+			{"GET /{lang}/admin", "GET /{lang}/admin/audit", "link"},
+			{"GET /{lang}/account/settings", "GET /{lang}/sign-in", "redirect"},
+		})
+	})
+
 	t.Run("handlers have nodes", func(t *testing.T) {
 		for _, route := range exp.Routes {
 			if !strings.Contains(route.Handler, exp.Module) {

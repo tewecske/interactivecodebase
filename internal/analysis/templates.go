@@ -359,10 +359,15 @@ func urlValues(ev *evaluator, v ssa.Value) []string {
 	}
 	var hinted []string
 	for _, arg := range call.Common().Args {
-		if k, ok := arg.(*ssa.Const); ok && k.Value != nil && k.Value.Kind() == constant.String {
-			if p := constant.StringVal(k.Value); strings.HasPrefix(p, "/") {
-				hinted = append(hinted, Unknown+p)
-			}
+		if b, ok := arg.Type().Underlying().(*types.Basic); !ok || b.Info()&types.IsString == 0 {
+			continue
+		}
+		paths := ev.strings(arg)
+		if slices.ContainsFunc(paths, func(p string) bool { return !strings.HasPrefix(p, "/") || strings.Contains(p, Unknown) }) {
+			continue
+		}
+		for _, p := range paths {
+			hinted = union(hinted, []string{Unknown + p})
 		}
 	}
 	if len(hinted) == 0 {

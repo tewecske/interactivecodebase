@@ -8,8 +8,8 @@ See [docs/PLAN.md](docs/PLAN.md) for the design and the [roadmap issue](https://
 
 > Status: early development. `analyze` and `query` build the call graph (functions, calls, interface dispatch,
 > implementations), discover net/http routes, sinks (SQL, files, HTTP, SMTP, exec, env), SQL tables from migrations
-> route access levels, pages (templates, HTMX requests, assets) and route flows down to the tables they touch; the
-> navigation graph, web UI and MCP are not implemented yet.
+> route access levels, pages (templates, HTMX requests, assets), navigation between routes (links, forms,
+> redirects) and route flows down to the tables they touch; the web UI and MCP are not implemented yet.
 
 ## Quickstart
 
@@ -29,6 +29,7 @@ Querying the graph from the terminal:
 ```sh
 bin/icb query ../goweb routes
 bin/icb query ../goweb page 'GET /{lang}/groups'            # templates, HTMX/form requests, assets
+bin/icb query ../goweb callees 'route:GET /{lang}/home'      # where you can navigate from a page
 bin/icb query ../goweb flow 'POST /{lang}/groups'           # call tree down to SQL and tables
 bin/icb query -method GET ../goweb flow 'POST /{lang}/sign-in'
 bin/icb query ../goweb callees 'groupHandler).create'

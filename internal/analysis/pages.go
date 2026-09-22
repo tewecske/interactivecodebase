@@ -32,8 +32,9 @@ func (u URLRef) Trigger() string {
 type PageRef struct {
 	URLRef
 	Template *Template
-	// Target is the key of the route the URL resolves to, if any.
-	Target string
+	// Targets are the keys of the routes the URL's possible values resolve
+	// to; several when the attribute sits in a {{range}}.
+	Targets []string
 }
 
 // buildPages finds the templates each route renders and resolves the URLs
@@ -76,7 +77,7 @@ func buildPages(r *Result, own []*ssa.Function) {
 				pr := PageRef{URLRef: ref, Template: t}
 				pr.Values = resolver.resolve(ref.Raw, scope)
 				if ref.Kind() != "asset" {
-					pr.Target = matchRoute(r.Routes, ref.Method, pr.Values)
+					pr.Targets = matchRoutes(r.Routes, ref.Method, pr.Values)
 				}
 				page.Refs = append(page.Refs, pr)
 			}
@@ -172,6 +173,18 @@ func contains(xs []string, x string) bool {
 		}
 	}
 	return false
+}
+
+// matchRoutes resolves each possible URL value to its route (see
+// matchRoute) and returns the distinct route keys.
+func matchRoutes(routes []Route, method string, values []string) []string {
+	var out []string
+	for _, v := range values {
+		if key := matchRoute(routes, method, []string{v}); key != "" && !contains(out, key) {
+			out = append(out, key)
+		}
+	}
+	return out
 }
 
 // matchRoute finds the route a request URL goes to: the best-scoring match
