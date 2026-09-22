@@ -12,6 +12,7 @@ import (
 	"golang.org/x/tools/go/ssa"
 
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/sqlparse"
 )
 
 // FuncID returns the graph node ID of fn: "func:" or "method:" followed by
@@ -122,8 +123,81 @@ func (b *builder) write(w *graph.Writer) error {
 	if err := b.addSinks(); err != nil {
 		return err
 	}
+	if err := b.addSchema(); err != nil {
+		return err
+	}
 	return b.addRoutes()
 }
+
+// TableID returns the graph node ID of a database table.
+func TableID(name string) string { return graph.NodeID(graph.KindSQLTable, name) }
+
+// ColumnID returns the graph node ID of a table column.
+func ColumnID(table, column string) string {
+	return graph.NodeID(graph.KindSQLColumn, table+"."+column)
+}
+
+// addSchema adds tables, their columns and foreign keys from the migrations.
+func (b *builder) addSchema() error {
+	s := b.r.Schema
+	for _, t := range s.Tables {
+		cols := make([]string, len(t.Columns))
+		for i, c := range t.Columns {
+			cols[i] = c.Name + " " + c.Type
+		}
+		attrs := map[string]string{}
+		if len(t.PrimaryKey) > 0 {
+			attrs["primaryKey"] = strings.Join(t.PrimaryKey, ",")
+		}
+		err := b.w.AddNode(graph.Node{
+			ID: TableID(t.Name), Kind: graph.KindSQLTable, Name: t.Name,
+			Detail: strings.Join(cols, ", "), Pos: schemaPos(t.Pos), Attrs: attrs,
+		})
+		if err != nil {
+			return err
+		}
+		for _, c := range t.Columns {
+			cattrs := map[string]string{"table": t.Name, "type": c.Type}
+			if c.NotNull {
+				cattrs["notNull"] = "true"
+			}
+			if slices.Contains(t.PrimaryKey, c.Name) {
+				cattrs["primaryKey"] = "true"
+			}
+			id := ColumnID(t.Name, c.Name)
+			if err := b.w.AddNode(graph.Node{ID: id, Kind: graph.KindSQLColumn, Name: c.Name, Detail: c.Type, Pos: schemaPos(c.Pos), Attrs: cattrs}); err != nil {
+				return err
+			}
+			if err := b.w.AddEdge(graph.Edge{From: TableID(t.Name), To: id, Kind: graph.EdgeHasColumn}); err != nil {
+				return err
+			}
+		}
+	}
+	for _, t := range s.Tables {
+		for _, fk := range t.ForeignKeys {
+			if s.Table(fk.RefTable) == nil {
+				continue // references a table the migrations do not create
+			}
+			attrs := map[string]string{
+				"columns":    strings.Join(fk.Columns, ","),
+				"references": fk.RefTable + "." + strings.Join(fk.RefColumns, ","),
+			}
+			if fk.Name != "" {
+				attrs["constraint"] = fk.Name
+			}
+			if fk.OnDelete != "" {
+				attrs["onDelete"] = fk.OnDelete
+			}
+			edge := graph.Edge{From: TableID(t.Name), To: TableID(fk.RefTable), Kind: graph.EdgeFK, Pos: schemaPos(fk.Pos), Attrs: attrs}
+			if err := b.w.AddEdge(edge); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func schemaPos(p sqlparse.Pos) graph.Pos { return graph.Pos{File: p.File, StartLine: p.Line} }
 
 // addSinks adds a node per sink call site, called by its containing function.
 func (b *builder) addSinks() error {

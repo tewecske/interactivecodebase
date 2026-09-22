@@ -311,3 +311,34 @@ func lineOf(t *testing.T, file, prefix string) int {
 	t.Fatalf("%s: no line starting with %q", file, prefix)
 	return 0
 }
+
+func TestSchemaInGraph(t *testing.T) {
+	r := webapp(t)
+	_, exp := fixture.Webapp(t)
+	if !slices.Equal(r.MigrationDirs, []string{"migrations"}) {
+		t.Errorf("migration dirs = %v", r.MigrationDirs)
+	}
+	for _, table := range exp.Tables {
+		if _, err := r.Graph.Node(t.Context(), TableID(table)); err != nil {
+			t.Errorf("table %s: %v", table, err)
+		}
+	}
+	for _, fk := range exp.ForeignKeys {
+		refTable, _, _ := strings.Cut(fk.References, ".")
+		nbs := neighbors(t, r, TableID(fk.Table), graph.EdgeFK)
+		ok := slices.ContainsFunc(nbs, func(nb graph.Neighbor) bool {
+			return nb.Node.ID == TableID(refTable) && nb.Edge.Attrs["columns"] == fk.Column &&
+				nb.Edge.Attrs["references"] == fk.References && nb.Edge.Attrs["onDelete"] == fk.OnDelete
+		})
+		if !ok {
+			t.Errorf("missing fk edge %+v", fk)
+		}
+	}
+	col, err := r.Graph.Node(t.Context(), ColumnID("sessions", "user_id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if col.Detail != "int8" || col.Attrs["notNull"] != "true" || col.Pos.File != "migrations/0001_users.up.sql" {
+		t.Errorf("sessions.user_id = %+v", col)
+	}
+}

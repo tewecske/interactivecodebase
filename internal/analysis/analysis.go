@@ -20,6 +20,7 @@ import (
 	"golang.org/x/tools/go/ssa/ssautil"
 
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/sqlparse"
 )
 
 // DefaultExclude lists package paths whose functions are left out of the
@@ -40,6 +41,9 @@ type Options struct {
 	Tests bool
 	// ExtraSinks are sink rules added to DefaultSinks.
 	ExtraSinks []SinkRule
+	// MigrationDirs are searched for SQL migrations, relative to the module
+	// root. Nil means sqlparse.DefaultMigrationDirs.
+	MigrationDirs []string
 }
 
 // Result is an analyzed module.
@@ -58,7 +62,11 @@ type Result struct {
 	// Sinks are the calls that leave the program: SQL, files, HTTP, SMTP,
 	// processes and environment reads.
 	Sinks []Sink
-	Stats Stats
+	// Schema is the database schema built from the migrations found in
+	// MigrationDirs (the directories actually used).
+	Schema        *sqlparse.Schema
+	MigrationDirs []string
+	Stats         Stats
 }
 
 // Stats describes an analysis run.
@@ -89,6 +97,7 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 		return nil, err
 	}
 	r := &Result{}
+	sqlparse.Warm() // compile the SQL parser while packages load
 
 	start := time.Now()
 	pkgs, err := load(ctx, abs, opts.Tests)
@@ -125,6 +134,9 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	own := moduleFunctions(r, funcs)
 	r.Routes = discoverRoutes(r, own)
 	r.Sinks = detectSinks(r, own, append(slices.Clone(DefaultSinks), opts.ExtraSinks...))
+	if r.Schema, r.MigrationDirs, err = sqlparse.LoadMigrations(r.Dir, opts.MigrationDirs); err != nil {
+		return nil, err
+	}
 	b := newBuilder(r, own, opts.Exclude)
 	if err := r.Graph.Write(ctx, b.write); err != nil {
 		return nil, errors.Join(err, r.Graph.Close())
