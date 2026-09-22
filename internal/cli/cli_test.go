@@ -190,25 +190,31 @@ func TestAnalyzeWebappJSON(t *testing.T) {
 func TestQueryWebapp(t *testing.T) {
 	dir := fixture.WebappDir()
 	tests := []struct {
-		name string
-		args []string
-		code int
-		out  string // expected in stdout (or stderr on failure)
+		name  string
+		args  []string
+		code  int
+		out   string   // expected in stdout (or stderr on failure)
+		flags []string // query flags, before the directory
 	}{
 		{"callees by ID without kind", []string{"callees", "(*example.com/webapp/internal/web.noteHandler).create"}, ExitOK,
-			"calls\tmethod:(*example.com/webapp/internal/web.noteHandler).user\tinternal/web/handlers.go:"},
-		{"callers by unique search", []string{"callers", "Authenticator).Authenticate"}, ExitOK, "web.requireAdmin$1"},
+			"calls\tmethod:(*example.com/webapp/internal/web.noteHandler).user\tinternal/web/handlers.go:", nil},
+		{"callers by unique search", []string{"callers", "Authenticator).Authenticate"}, ExitOK, "web.requireAdmin$1", nil},
 		{"paths through interface dispatch", []string{"paths", "noteHandler).create", "sql.Tx).ExecContext"}, ExitOK,
-			"-dispatches_to-> method:(*example.com/webapp/internal/store/postgres.NoteRepository).Create"},
-		{"search", []string{"search", "SMTPMailer"}, ExitOK, "type:example.com/webapp/internal/mail.SMTPMailer"},
+			"-dispatches_to-> method:(*example.com/webapp/internal/store/postgres.NoteRepository).Create", nil},
+		{"search", []string{"search", "SMTPMailer"}, ExitOK, "type:example.com/webapp/internal/mail.SMTPMailer", nil},
+		{"flow", []string{"flow", "POST /{lang}/notes"}, ExitOK,
+			"sink.sql (*sql.Tx).QueryRowContext \"INSERT INTO notes (owner_id, title, body, created_at) VALUES ($1, $2, $3, $4) RETURNING id\"", nil},
+		{name: "flow method", flags: []string{"-method", "GET"}, args: []string{"flow", "POST /{lang}/sign-in"}, code: ExitOK, out: "table sessions (select"},
+		{name: "flow bad prune", flags: []string{"-prune", "bogus"}, args: []string{"flow", "POST /{lang}/notes"}, code: ExitUsage, out: `invalid -prune "bogus"`},
 		{"routes", []string{"routes"}, ExitOK,
-			"POST /{lang}/admin/reindex\texample.com/webapp/internal/web.requireAdmin > (*example.com/webapp/internal/web.adminHandler).reindex\tinternal/web/router.go:"},
-		{"ambiguous node", []string{"callees", "Create"}, ExitError, "matches several nodes; use an ID"},
-		{"unknown node", []string{"callees", "nosuchthing"}, ExitError, `no node matches "nosuchthing"`},
+			"POST /{lang}/admin/reindex\texample.com/webapp/internal/web.requireAdmin > (*example.com/webapp/internal/web.adminHandler).reindex\tinternal/web/router.go:", nil},
+		{"ambiguous node", []string{"callees", "Create"}, ExitError, "matches several nodes; use an ID", nil},
+		{"unknown node", []string{"callees", "nosuchthing"}, ExitError, `no node matches "nosuchthing"`, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code, stdout, stderr := run(t, append([]string{"query", dir}, tt.args...)...)
+			args := append(append(append([]string{"query"}, tt.flags...), dir), tt.args...)
+			code, stdout, stderr := run(t, args...)
 			if code != tt.code {
 				t.Fatalf("exit code = %d, want %d; stderr: %s", code, tt.code, stderr)
 			}

@@ -79,6 +79,8 @@ type Sink struct {
 	// config.Load(os.Getenv); its calls happen elsewhere.
 	FuncValue bool
 	Pos       token.Pos
+	// Instr is the call or the instruction using the function value.
+	Instr ssa.Instruction
 	// Query is what an SQL sink's text does, merged over all its Values.
 	Query *sqlparse.Query
 }
@@ -166,6 +168,7 @@ func detectSinks(r *Result, own []*ssa.Function, rules []SinkRule) []Sink {
 					Callee: rule.Func,
 					Values: sinkValues(ev, e.Site.Common(), rule),
 					Pos:    e.Site.Pos(),
+					Instr:  e.Site,
 				})
 			}
 		}
@@ -249,7 +252,7 @@ func funcValueSinks(fn *ssa.Function, byFunc map[string]SinkRule) []Sink {
 				if pos == token.NoPos {
 					pos = fn.Pos()
 				}
-				out = append(out, Sink{Kind: rule.Kind, Caller: fn, Callee: rule.Func, FuncValue: true, Pos: pos})
+				out = append(out, Sink{Kind: rule.Kind, Caller: fn, Callee: rule.Func, FuncValue: true, Pos: pos, Instr: instr})
 			}
 		}
 	}

@@ -62,6 +62,7 @@ func funcPkg(fn *ssa.Function) *types.Package {
 type builder struct {
 	r           *Result
 	own         []*ssa.Function
+	scopes      map[*ssa.Function]*methodScope
 	exclude     []string
 	fset        *token.FileSet
 	w           *graph.Writer
@@ -70,7 +71,7 @@ type builder struct {
 }
 
 func newBuilder(r *Result, own []*ssa.Function, exclude []string) *builder {
-	return &builder{r: r, own: own, exclude: exclude, fset: r.Program.Fset, added: map[string]bool{}}
+	return &builder{r: r, own: own, scopes: methodScopes(own), exclude: exclude, fset: r.Program.Fset, added: map[string]bool{}}
 }
 
 // moduleFunctions returns the module's source functions, sorted by name so
@@ -269,7 +270,8 @@ func (b *builder) addSinks() error {
 		if err := b.addFunc(s.Caller); err != nil {
 			return err
 		}
-		edge := graph.Edge{From: FuncID(s.Caller), To: id, Kind: graph.EdgeCalls, Pos: b.pos(s.Pos, token.NoPos)}
+		methods := b.scopes[s.Caller].methods(s.Instr)
+		edge := graph.Edge{From: FuncID(s.Caller), To: id, Kind: graph.EdgeCalls, Pos: b.pos(s.Pos, token.NoPos), Attrs: methodAttrs(methods)}
 		if err := b.w.AddEdge(edge); err != nil {
 			return err
 		}
@@ -352,6 +354,7 @@ func funcNames(fns []*ssa.Function) string {
 
 func (b *builder) addCalls(n *callgraph.Node) error {
 	from := FuncID(n.Func)
+	scope := b.scopes[n.Func]
 	// The call graph's edge order depends on map iteration; sort by call
 	// site, then callee, so edge IDs and export order are deterministic.
 	out := slices.Clone(n.Out)
@@ -365,8 +368,9 @@ func (b *builder) addCalls(n *callgraph.Node) error {
 		callee := origin(e.Callee.Func)
 		common := e.Site.Common()
 		pos := b.pos(e.Site.Pos(), token.NoPos)
+		methods := scope.methods(e.Site)
 		if common.IsInvoke() {
-			if err := b.addInvoke(from, common.Method, callee, pos); err != nil {
+			if err := b.addInvoke(from, common.Method, callee, pos, methods); err != nil {
 				return err
 			}
 			continue
@@ -378,9 +382,9 @@ func (b *builder) addCalls(n *callgraph.Node) error {
 		if !ok {
 			continue
 		}
-		edge := graph.Edge{From: from, To: FuncID(callee), Kind: graph.EdgeCalls, Pos: pos}
+		edge := graph.Edge{From: from, To: FuncID(callee), Kind: graph.EdgeCalls, Pos: pos, Attrs: methodAttrs(methods)}
 		if common.StaticCallee() == nil {
-			edge.Attrs = map[string]string{"dynamic": "true"}
+			edge.Attrs = withAttr(edge.Attrs, "dynamic", "true")
 		}
 		if err := b.w.AddEdge(edge); err != nil {
 			return err
@@ -393,12 +397,12 @@ func (b *builder) addCalls(n *callgraph.Node) error {
 // dispatch to callee. Interfaces declared outside the module only dispatch
 // to module implementations; otherwise io.Closer.Close alone would fan out
 // into every closer in the standard library.
-func (b *builder) addInvoke(from string, m *types.Func, callee *ssa.Function, pos graph.Pos) error {
+func (b *builder) addInvoke(from string, m *types.Func, callee *ssa.Function, pos graph.Pos, methods []string) error {
 	ifaceID, ok, err := b.addInterfaceMethod(m)
 	if err != nil || !ok {
 		return err
 	}
-	if err := b.w.AddEdge(graph.Edge{From: from, To: ifaceID, Kind: graph.EdgeCalls, Pos: pos}); err != nil {
+	if err := b.w.AddEdge(graph.Edge{From: from, To: ifaceID, Kind: graph.EdgeCalls, Pos: pos, Attrs: methodAttrs(methods)}); err != nil {
 		return err
 	}
 	if !b.inModule(m.Pkg()) && !b.inModule(funcPkg(callee)) {
@@ -416,6 +420,22 @@ func edgePos(e *callgraph.Edge) token.Pos {
 		return token.NoPos
 	}
 	return e.Site.Pos()
+}
+
+// methodAttrs records the request methods a call is limited to.
+func methodAttrs(methods []string) map[string]string {
+	if len(methods) == 0 {
+		return nil
+	}
+	return map[string]string{"methods": strings.Join(methods, ",")}
+}
+
+func withAttr(attrs map[string]string, k, v string) map[string]string {
+	if attrs == nil {
+		attrs = map[string]string{}
+	}
+	attrs[k] = v
+	return attrs
 }
 
 // addCallee adds fn unless it is excluded; it reports whether fn is in the graph.
@@ -449,6 +469,9 @@ func (b *builder) addFunc(fn *ssa.Function) error {
 			n.Pos = b.pos(syntax.Pos(), syntax.End())
 		} else {
 			n.Pos = b.pos(fn.Pos(), token.NoPos)
+		}
+		if scope := b.scopes[fn]; scope != nil {
+			n.Attrs = map[string]string{"methodBranches": strings.Join(scope.compared, ",")}
 		}
 	} else {
 		n.Attrs = map[string]string{"external": "true"}
