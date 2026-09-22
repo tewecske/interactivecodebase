@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tewecske/interactivecodebase/internal/flow"
 	"github.com/tewecske/interactivecodebase/internal/graph"
 )
 
@@ -18,6 +19,8 @@ const queryHelp = `Commands:
   callees <node>       what a node calls (and interface dispatch targets)
   callers <node>       what calls a node
   paths <from> <to>    shortest call paths between two nodes
+  flow <route>         the route's call tree down to sinks and tables,
+                       e.g. flow 'POST /{lang}/groups'
 
 A <node> is a node ID ("method:(*example.com/app.T).M"), the ID without its
 kind prefix ("(*example.com/app.T).M"), or search text matching one node
@@ -29,6 +32,8 @@ const maxCandidates = 10
 func runQuery(ctx context.Context, e *env, args []string) (err error) {
 	fs := newFlagSet(e, "query", "icb query [flags] <dir> <command> [args]")
 	asJSON := fs.Bool("json", false, "print results as JSON")
+	method := fs.String("method", "", "flow: request method to follow (default: the route's)")
+	prune := fs.String("prune", "sinks", "flow: sinks (only paths to sinks), module (module code and sinks) or none")
 	usage := fs.Usage
 	fs.Usage = func() {
 		usage()
@@ -38,7 +43,13 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 		return err
 	}
 	cmd, cmdArgs := fs.Arg(1), fs.Args()[2:]
-	want := map[string]int{"export": 0, "routes": 0, "search": -1, "callees": 1, "callers": 1, "paths": 2}
+	pruneLevel, ok := map[string]flow.Prune{"module": flow.PruneModule, "sinks": flow.PruneSinks, "none": flow.PruneNone}[*prune]
+	if !ok {
+		fmt.Fprintf(fs.Output(), "invalid -prune %q\n\n", *prune)
+		fs.Usage()
+		return errUsage
+	}
+	want := map[string]int{"export": 0, "routes": 0, "flow": 1, "search": -1, "callees": 1, "callers": 1, "paths": 2}
 	n, ok := want[cmd]
 	if !ok {
 		fmt.Fprintf(fs.Output(), "unknown query command %q\n\n", cmd)
@@ -91,6 +102,19 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 			return err
 		}
 		return q.neighbors(nbs)
+	case "flow":
+		route, err := q.resolve(ctx, cmdArgs[0])
+		if err != nil {
+			return err
+		}
+		tree, err := flow.Build(ctx, g, route.ID, flow.Options{Method: *method, Prune: pruneLevel})
+		if err != nil {
+			return err
+		}
+		if q.json {
+			return writeJSON(e, tree)
+		}
+		return flow.WriteText(e.stdout, tree)
 	default: // paths
 		from, err := q.resolve(ctx, cmdArgs[0])
 		if err != nil {
@@ -120,7 +144,7 @@ var errNodeNotFound = errors.New("no node matches")
 // its kind prefix, or search text matching exactly one node.
 func (q *querier) resolve(ctx context.Context, arg string) (graph.Node, error) {
 	candidates := []string{arg}
-	for _, k := range []graph.NodeKind{graph.KindMethod, graph.KindFunc, graph.KindInterfaceCall, graph.KindType} {
+	for _, k := range []graph.NodeKind{graph.KindRoute, graph.KindMethod, graph.KindFunc, graph.KindInterfaceCall, graph.KindType} {
 		candidates = append(candidates, graph.NodeID(k, arg))
 	}
 	for _, id := range candidates {
