@@ -32,6 +32,28 @@ jobs:
       - name: Build
         run: go build ./...
 
+  goweb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Read pinned goweb commit
+        id: pin
+        run: echo "commit=$(jq -r .commit testdata/golden/goweb.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: tewecske/goweb
+          ref: ${{ steps.pin.outputs.commit }}
+          path: goweb-src
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Golden test against goweb
+        run: make test-goweb
+        env:
+          ICB_GOWEB_DIR: ${{ github.workspace }}/goweb-src
+          ICB_GOWEB_REQUIRED: "1"
+
   lint:
     runs-on: ubuntu-latest
     steps:

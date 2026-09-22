@@ -1,0 +1,7 @@
+{{template "head" .}}
+<h1>Sign in</h1>
+<form method="post" action="{{.ActionURL}}">
+  <input name="email" type="email" required>
+  <button>Sign in</button>
+</form>
+{{template "foot" .}}

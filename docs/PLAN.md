@@ -84,8 +84,10 @@ ordinary nodes, so one `nodes`/`edges` schema (plus an FTS5 trigram index) cover
   Unresolvable parts become `{?}` placeholders rather than being dropped.
 - **Auth classification**: goweb checks auth *inside* handlers. Configurable "guard" functions
   (`Authenticator.Authenticate`, `adminHandler.authorize`, middleware wrappers). A route is `authenticated` if every
-  path to a sink passes through a guard (post-dominance on the handler CFG); `public` otherwise; `mixed` if both
-  (e.g. sign-in GET redirects authenticated users). Heuristic auto-detection + `icb.yaml` overrides.
+  path to a sink passes through a guard (post-dominance on the handler CFG); `admin`/`guest` when the guard also
+  checks the role; `public` otherwise. Public routes that still consult the session (sign-in GET redirects signed-in
+  users, pages personalise the header) are flagged `optionalAuth`. Heuristic auto-detection + `icb.yaml` overrides.
+  Expected results for goweb live in `testdata/golden/goweb.json`.
 - **Navigation graph**: parse templates (`text/template/parse`) for `href`, `action`, `hx-get/post/...`,
   `<script src>`, `<link href>`; resolve `{{.CreateURL}}` by tracing which struct field is set in the handler's
   view-model (SSA store to field → constant/format string). Plus `http.Redirect` targets from handlers.

@@ -35,6 +35,14 @@ make check   # gofmt check, go vet, golangci-lint, tests (with -race)
 make test
 make lint    # runs a pinned golangci-lint via `go run`, no install needed
 make ui      # builds the web UI once ui/ exists
+make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_GOWEB_DIR) at the pinned commit
 ```
+
+### Fixtures
+
+- `testdata/fixtures/webapp/`: a small stdlib-only web app covering the patterns analysis must handle, with `expected.json`.
+- `testdata/golden/goweb.json`: expectations for [goweb](https://github.com/tewecske/goweb) at a pinned commit.
+
+`internal/fixture` loads both and, until the analyzers exist, checks that every function, type, table, foreign key, template and asset the expectations name really exists.
 
 CI runs the same checks on every push to `main` and on pull requests.

@@ -5,7 +5,7 @@ GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lin
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X github.com/tewecske/interactivecodebase/internal/cli.Version=$(VERSION)
 
-.PHONY: build clean fmt-check vet test lint ui check
+.PHONY: build clean fmt-check vet test test-goweb lint ui check
 
 build: ui
 	mkdir -p bin
@@ -22,6 +22,11 @@ vet:
 
 test:
 	$(GO) test -race -shuffle=on ./...
+
+# Checks the goweb golden expectations against a goweb checkout at the pinned
+# commit: ../goweb by default, or ICB_GOWEB_DIR.
+test-goweb:
+	$(GO) test -tags goweb -run Goweb -v ./...
 
 lint:
 	$(GOLANGCI_LINT) run ./...
