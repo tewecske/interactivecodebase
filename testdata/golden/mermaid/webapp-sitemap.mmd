@@ -1,0 +1,56 @@
+flowchart LR
+  subgraph public["Public"]
+    r0("GET /auth/{?}/callback")
+    r1("GET /healthz")
+    r2("GET /static/{path...}")
+    r3("GET /{$}")
+    r4[/"POST /{lang}/sign-in"/]
+  end
+  subgraph optional["Public, session-aware"]
+    r5("GET /{lang}/sign-in")
+    r6("GET /{lang}/weather")
+  end
+  subgraph authenticated["Signed in"]
+    r7("GET /{lang}/notes")
+    r8("GET /{lang}/notes/{id}")
+    r9[/"POST /{lang}/notes"/]
+    r10[/"POST /{lang}/notes/{id}/share"/]
+  end
+  subgraph admin["Admin"]
+    r11("GET /{lang}/admin/export")
+    r12[/"POST /{lang}/admin/reindex"/]
+  end
+  r0 -.-> r7
+  r3 -.-> r5
+  r7 -.-> r5
+  r7 --> r6
+  r7 --> r5
+  r7 ==> r9
+  r7 --> r8
+  r8 -.-> r5
+  r8 --> r6
+  r8 --> r5
+  r8 --> r7
+  r5 -.-> r7
+  r5 --> r7
+  r5 --> r6
+  r5 ==> r4
+  r6 --> r7
+  r6 --> r5
+  r9 -.-> r5
+  r9 -.->|hx| r8
+  r10 -.-> r5
+  r4 -.-> r7
+  click r0 icbClick
+  click r1 icbClick
+  click r2 icbClick
+  click r3 icbClick
+  click r4 icbClick
+  click r5 icbClick
+  click r6 icbClick
+  click r7 icbClick
+  click r8 icbClick
+  click r9 icbClick
+  click r10 icbClick
+  click r11 icbClick
+  click r12 icbClick

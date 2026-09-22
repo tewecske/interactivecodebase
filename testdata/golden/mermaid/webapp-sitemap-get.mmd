@@ -1,0 +1,42 @@
+flowchart LR
+  subgraph public["Public"]
+    r0("GET /auth/{?}/callback")
+    r1("GET /healthz")
+    r2("GET /static/{path...}")
+    r3("GET /{$}")
+  end
+  subgraph optional["Public, session-aware"]
+    r4("GET /{lang}/sign-in")
+    r5("GET /{lang}/weather")
+  end
+  subgraph authenticated["Signed in"]
+    r6("GET /{lang}/notes")
+    r7("GET /{lang}/notes/{id}")
+  end
+  subgraph admin["Admin"]
+    r8("GET /{lang}/admin/export")
+  end
+  r0 -.-> r6
+  r3 -.-> r4
+  r6 -.-> r4
+  r6 --> r5
+  r6 --> r4
+  r6 --> r7
+  r7 -.-> r4
+  r7 --> r5
+  r7 --> r4
+  r7 --> r6
+  r4 -.-> r6
+  r4 --> r6
+  r4 --> r5
+  r5 --> r6
+  r5 --> r4
+  click r0 icbClick
+  click r1 icbClick
+  click r2 icbClick
+  click r3 icbClick
+  click r4 icbClick
+  click r5 icbClick
+  click r6 icbClick
+  click r7 icbClick
+  click r8 icbClick

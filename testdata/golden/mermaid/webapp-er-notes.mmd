@@ -1,0 +1,20 @@
+erDiagram
+  audit_events {
+    bigserial id PK
+    int8 note_id FK
+    text action 
+  }
+  notes {
+    bigserial id PK
+    int8 owner_id FK
+    text title 
+    text body 
+    timestamptz created_at 
+  }
+  users {
+    bigserial id PK
+    text email 
+    bool is_admin 
+  }
+  audit_events }o--|| notes : "note_id on delete set null"
+  notes }o--|| users : "owner_id on delete cascade"

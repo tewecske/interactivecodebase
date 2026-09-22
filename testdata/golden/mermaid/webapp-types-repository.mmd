@@ -1,0 +1,16 @@
+classDiagram
+  class notes_Repository {
+    <<interface>>
+    +Create(ctx context.Context, note Note) (Note, error)
+    +Get(ctx context.Context, id int64) (Note, error)
+    +ListByOwner(ctx context.Context, ownerID int64) ([]Note, error)
+  }
+  class postgres_NoteRepository {
+    -*sql.DB db
+    +Create(ctx context.Context, note notes.Note) (notes.Note, error)
+    +Get(ctx context.Context, id int64) (notes.Note, error)
+    +ListByOwner(ctx context.Context, ownerID int64) ([]notes.Note, error)
+  }
+  postgres_NoteRepository ..|> notes_Repository
+  click notes_Repository call icbClick()
+  click postgres_NoteRepository call icbClick()

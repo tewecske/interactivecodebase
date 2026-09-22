@@ -72,19 +72,6 @@ func checkDir(dir string) error {
 	return nil
 }
 
-func runServe(_ context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "serve", "icb serve [flags] <dir>")
-	fs.String("addr", "127.0.0.1:8080", "listen address")
-	fs.Bool("watch", false, "re-analyze when source files change")
-	if err := parse(fs, args, 1); err != nil {
-		return err
-	}
-	if err := checkDir(fs.Arg(0)); err != nil {
-		return err
-	}
-	return fmt.Errorf("%w (see #13)", errNotImplemented)
-}
-
 func runMCP(_ context.Context, e *env, args []string) error {
 	fs := newFlagSet(e, "mcp", "icb mcp [flags] <dir>")
 	if err := parse(fs, args, 1); err != nil {
