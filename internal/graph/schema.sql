@@ -32,25 +32,26 @@ CREATE TABLE edges (
 CREATE INDEX edges_src ON edges (src, kind);
 CREATE INDEX edges_dst ON edges (dst, kind);
 
--- Trigram tokens give substring matches: "group" finds "CreateGroup".
+-- Trigram tokens give substring matches: "group" finds "CreateGroup". The
+-- ID makes qualified names searchable: "sql.Tx).ExecContext".
 CREATE VIRTUAL TABLE nodes_fts USING fts5 (
-	name, package, file, detail,
+	name, package, file, detail, id,
 	content = 'nodes', content_rowid = 'rowid', tokenize = 'trigram'
 );
 
 CREATE TRIGGER nodes_ai AFTER INSERT ON nodes BEGIN
-	INSERT INTO nodes_fts (rowid, name, package, file, detail)
-	VALUES (new.rowid, new.name, new.package, new.file, new.detail);
+	INSERT INTO nodes_fts (rowid, name, package, file, detail, id)
+	VALUES (new.rowid, new.name, new.package, new.file, new.detail, new.id);
 END;
 
 CREATE TRIGGER nodes_ad AFTER DELETE ON nodes BEGIN
-	INSERT INTO nodes_fts (nodes_fts, rowid, name, package, file, detail)
-	VALUES ('delete', old.rowid, old.name, old.package, old.file, old.detail);
+	INSERT INTO nodes_fts (nodes_fts, rowid, name, package, file, detail, id)
+	VALUES ('delete', old.rowid, old.name, old.package, old.file, old.detail, old.id);
 END;
 
 CREATE TRIGGER nodes_au AFTER UPDATE ON nodes BEGIN
-	INSERT INTO nodes_fts (nodes_fts, rowid, name, package, file, detail)
-	VALUES ('delete', old.rowid, old.name, old.package, old.file, old.detail);
-	INSERT INTO nodes_fts (rowid, name, package, file, detail)
-	VALUES (new.rowid, new.name, new.package, new.file, new.detail);
+	INSERT INTO nodes_fts (nodes_fts, rowid, name, package, file, detail, id)
+	VALUES ('delete', old.rowid, old.name, old.package, old.file, old.detail, old.id);
+	INSERT INTO nodes_fts (rowid, name, package, file, detail, id)
+	VALUES (new.rowid, new.name, new.package, new.file, new.detail, new.id);
 END;

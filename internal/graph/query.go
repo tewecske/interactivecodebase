@@ -280,7 +280,7 @@ type SearchOptions struct {
 	Limit int        // maximum results; default 50
 }
 
-// Search finds nodes whose name, package, file or detail contain every
+// Search finds nodes whose name, package, file, detail or ID contain every
 // whitespace-separated term of q (case-insensitive). Name matches rank first.
 func (g *Graph) Search(ctx context.Context, q string, opts SearchOptions) ([]Node, error) {
 	if opts.Limit <= 0 {
@@ -301,7 +301,7 @@ func (g *Graph) Search(ctx context.Context, q string, opts SearchOptions) ([]Nod
 		var conds []string
 		var args []any
 		for _, t := range terms {
-			conds = append(conds, `(n.name || ' ' || n.package || ' ' || n.file || ' ' || n.detail) LIKE ? ESCAPE '\'`)
+			conds = append(conds, `(n.name || ' ' || n.package || ' ' || n.file || ' ' || n.detail || ' ' || n.id) LIKE ? ESCAPE '\'`)
 			args = append(args, "%"+escapeLike(t)+"%")
 		}
 		args = append(append(args, kindArgs...), opts.Limit)
@@ -316,7 +316,7 @@ func (g *Graph) Search(ctx context.Context, q string, opts SearchOptions) ([]Nod
 	args = append(args, opts.Limit)
 	return g.queryNodes(ctx, "SELECT "+nodeCols+" FROM nodes_fts JOIN nodes n ON n.rowid = nodes_fts.rowid"+
 		" WHERE nodes_fts MATCH ?"+kindFilter+
-		" ORDER BY bm25(nodes_fts, 10.0, 2.0, 1.0, 1.0), length(n.name), n.id LIMIT ?", args...)
+		" ORDER BY bm25(nodes_fts, 10.0, 2.0, 1.0, 1.0, 1.0), length(n.name), n.id LIMIT ?", args...)
 }
 
 func allTrigrams(terms []string) bool {

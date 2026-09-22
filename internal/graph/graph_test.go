@@ -187,7 +187,7 @@ func TestAddNodeUpsertsAndReindexes(t *testing.T) {
 	if ids := searchIDs(t, g, "InsertTeam", SearchOptions{}); !slices.Equal(ids, []string{idRepo}) {
 		t.Errorf("search new name = %v", ids)
 	}
-	if ids := searchIDs(t, g, "GroupRepository", SearchOptions{Kinds: []NodeKind{KindMethod}}); len(ids) != 0 {
+	if ids := searchIDs(t, g, "context.Context", SearchOptions{Kinds: []NodeKind{KindMethod}}); len(ids) != 0 {
 		t.Errorf("search old detail still matches: %v", ids)
 	}
 }
@@ -300,6 +300,7 @@ func TestSearch(t *testing.T) {
 		{"short term matches package", "hu", SearchOptions{Kinds: []NodeKind{KindInterfaceCall}}, []string{idIface}},
 		{"short term no match", "zq", SearchOptions{}, nil},
 		{"quotes are literal", `"groups`, SearchOptions{}, nil},
+		{"qualified name across package and name", "postgres.(*GroupRepository).Create", SearchOptions{}, []string{idRepo}},
 		{"limit", "group", SearchOptions{Limit: 1}, []string{idGroups}},
 		{"blank", "  ", SearchOptions{}, nil},
 	}
