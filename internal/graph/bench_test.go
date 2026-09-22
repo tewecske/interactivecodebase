@@ -14,7 +14,11 @@ func syntheticGraph(b *testing.B, n, m int) *Graph {
 	if err != nil {
 		b.Fatal(err)
 	}
-	b.Cleanup(func() { g.Close() })
+	b.Cleanup(func() {
+		if err := g.Close(); err != nil {
+			b.Error(err)
+		}
+	})
 	r := rand.New(rand.NewPCG(1, 2))
 	id := func(i int) string { return fmt.Sprintf("func:f%d", i) }
 	err = g.Write(b.Context(), func(w *Writer) error {
