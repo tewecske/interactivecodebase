@@ -106,6 +106,8 @@ func compareRoutes(t *testing.T, want []fixture.Route, got []Route) {
 		check("middleware", middlewareNames(rt.Middleware), w.Middleware)
 		check("conditional", rt.Conditional(), w.Conditional)
 		check("static", rt.Static, w.Static)
+		check("access", rt.Access, w.Access)
+		check("optionalAuth", rt.OptionalAuth, w.OptionalAuth)
 		if len(diffs) > 0 {
 			t.Errorf("route %s: %s", w.Key(), strings.Join(diffs, "; "))
 		}
@@ -124,4 +126,40 @@ func middlewareNames(fns []*ssa.Function) []string {
 		names = append(names, origin(fn).String())
 	}
 	return names
+}
+
+func TestGuardEvidence(t *testing.T) {
+	r := webapp(t)
+	tests := []struct {
+		route, guard, role, attr string
+	}{
+		{"GET /{lang}/notes", "(*" + web + ".noteHandler).user", "authenticated", ""},
+		{"GET /{lang}/admin/export", "(*" + web + ".Authenticator).Authenticate", "admin", ""},
+		{"POST /{lang}/admin/reindex", "(*" + web + ".Authenticator).Authenticate", "admin", ""},
+		{"GET /{lang}/weather", "(*" + web + ".Authenticator).Authenticate", "", "true"},
+	}
+	for _, tt := range tests {
+		id := graph.NodeID(graph.KindRoute, tt.route)
+		nbs := neighbors(t, r, id, graph.EdgeGuardedBy)
+		i := slices.IndexFunc(nbs, func(nb graph.Neighbor) bool {
+			return nb.Node.ID == graph.NodeID(graph.KindMethod, tt.guard) && nb.Edge.Attrs["role"] == tt.role && nb.Edge.Attrs["optional"] == tt.attr
+		})
+		if i < 0 {
+			t.Errorf("%s: no guarded_by %s (role %q, optional %q); got %+v", tt.route, tt.guard, tt.role, tt.attr, nbs)
+			continue
+		}
+		if nbs[i].Edge.Pos.File == "" || nbs[i].Edge.Pos.StartLine == 0 {
+			t.Errorf("%s: guard edge has no call-site position", tt.route)
+		}
+		n, err := r.Graph.Node(t.Context(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n.Attrs["accessEvidence"] == "" {
+			t.Errorf("%s: no access evidence", tt.route)
+		}
+	}
+	if nbs := neighbors(t, r, graph.NodeID(graph.KindRoute, "GET /healthz"), graph.EdgeGuardedBy); len(nbs) != 0 {
+		t.Errorf("healthz has guards %v", nbs)
+	}
 }

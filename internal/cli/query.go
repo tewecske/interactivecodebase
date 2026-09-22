@@ -14,7 +14,8 @@ import (
 
 const queryHelp = `Commands:
   export               the whole graph as JSON
-  routes               HTTP routes with their handlers, in registration order
+  routes               HTTP routes with access level (* = optional auth) and
+                       handler, in registration order
   search <text>        nodes whose name, package, file, detail or ID contain text
   callees <node>       what a node calls (and interface dispatch targets)
   callers <node>       what calls a node
@@ -209,7 +210,11 @@ func (q *querier) routes(nodes []graph.Node) error {
 		if mw := n.Attrs["middleware"]; mw != "" {
 			handler = mw + " > " + handler
 		}
-		fmt.Fprintf(q.e.stdout, "%s\t%s\t%s\n", n.Name, handler, formatPos(n.Pos))
+		access := n.Attrs["access"]
+		if n.Attrs["optionalAuth"] == "true" {
+			access += "*"
+		}
+		fmt.Fprintf(q.e.stdout, "%s\t%s\t%s\t%s\n", n.Name, access, handler, formatPos(n.Pos))
 	}
 	return nil
 }

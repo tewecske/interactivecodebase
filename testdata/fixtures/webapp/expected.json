@@ -39,8 +39,7 @@
         "/de/sign-in"
       ],
       "handler": "(*example.com/webapp/internal/web.accountHandler).signIn",
-      "access": "public",
-      "optionalAuth": true
+      "access": "public"
     },
     {
       "method": "GET",

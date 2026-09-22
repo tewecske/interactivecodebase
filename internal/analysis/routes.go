@@ -31,6 +31,12 @@ type Route struct {
 	Static bool
 	// Pos is the registration call.
 	Pos token.Pos
+	// Access is public, authenticated, admin or guest.
+	Access string
+	// OptionalAuth marks public routes that still consult the session.
+	OptionalAuth bool
+	// Guards is the evidence for Access and OptionalAuth.
+	Guards []GuardUse
 }
 
 // Key identifies the route as "METHOD pattern".

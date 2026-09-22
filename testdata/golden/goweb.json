@@ -41,8 +41,7 @@
         "/hu/sign-up"
       ],
       "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).signUp",
-      "access": "public",
-      "optionalAuth": true
+      "access": "public"
     },
     {
       "method": "GET",
@@ -63,8 +62,7 @@
         "/hu/sign-in"
       ],
       "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).signIn",
-      "access": "public",
-      "optionalAuth": true
+      "access": "public"
     },
     {
       "method": "GET",

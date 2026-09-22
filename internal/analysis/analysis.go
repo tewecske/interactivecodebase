@@ -41,6 +41,9 @@ type Options struct {
 	Tests bool
 	// ExtraSinks are sink rules added to DefaultSinks.
 	ExtraSinks []SinkRule
+	// AuthFuncs are go/ssa names of functions to treat as authentication
+	// checks, in addition to request-taking functions named *authenticat*.
+	AuthFuncs []string
 	// MigrationDirs are searched for SQL migrations, relative to the module
 	// root. Nil means sqlparse.DefaultMigrationDirs.
 	MigrationDirs []string
@@ -67,6 +70,8 @@ type Result struct {
 	Schema        *sqlparse.Schema
 	MigrationDirs []string
 	Stats         Stats
+
+	scopes map[*ssa.Function]*methodScope
 }
 
 // Stats describes an analysis run.
@@ -135,6 +140,8 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	r.Routes = discoverRoutes(r, own)
 	r.Sinks = detectSinks(r, own, append(slices.Clone(DefaultSinks), opts.ExtraSinks...))
 	analyzeQueries(r.Sinks, sqlparse.Postgres)
+	r.scopes = methodScopes(own)
+	newAuthClassifier(r, own, r.scopes, opts.AuthFuncs).classify(r.Routes)
 	if r.Schema, r.MigrationDirs, err = sqlparse.LoadMigrations(r.Dir, opts.MigrationDirs); err != nil {
 		return nil, err
 	}
