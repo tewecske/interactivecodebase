@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/tools/go/callgraph"
@@ -75,7 +76,9 @@ type Result struct {
 	Navigation []Navigation
 	Stats      Stats
 
-	scopes map[*ssa.Function]*methodScope
+	scopes    map[*ssa.Function]*methodScope
+	funcOnce  sync.Once
+	funcIndex map[string]*ssa.Function
 }
 
 // Stats describes an analysis run.

@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/fixture"
@@ -223,5 +226,68 @@ func TestQueryWebapp(t *testing.T) {
 				t.Errorf("output missing %q:\n%s", tt.out, out)
 			}
 		})
+	}
+}
+
+// syncBuffer is a bytes.Buffer safe for one writer and polling readers.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func TestServe(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var stdout, stderr syncBuffer
+	done := make(chan int, 1)
+	go func() {
+		done <- Run(ctx, []string{"serve", "-addr", "127.0.0.1:0", fixture.WebappDir()}, &stdout, &stderr)
+	}()
+
+	var base string
+	deadline := time.Now().Add(30 * time.Second)
+	for base == "" {
+		if time.Now().After(deadline) {
+			t.Fatalf("server did not start; stdout %q stderr %q", stdout.String(), stderr.String())
+		}
+		if _, after, ok := strings.Cut(stdout.String(), "serving "); ok {
+			base = strings.TrimSpace(after)
+			break
+		}
+		select {
+		case code := <-done:
+			t.Fatalf("serve exited with %d: %s", code, stderr.String())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	resp, err := http.Get(base + "/api/summary")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.Contains(string(body), `"module": "example.com/webapp"`) {
+		t.Errorf("summary %d %s", resp.StatusCode, body)
+	}
+	cancel()
+	select {
+	case code := <-done:
+		if code != ExitOK {
+			t.Errorf("exit code %d after shutdown: %s", code, stderr.String())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("serve did not shut down")
 	}
 }

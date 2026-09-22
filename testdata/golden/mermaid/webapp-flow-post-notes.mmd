@@ -1,0 +1,16 @@
+sequenceDiagram
+  actor Browser
+  autonumber
+  participant web as web
+  Browser->>web: POST /{lang}/notes
+  web->>web: (*noteHandler).user
+  web->>web: (*Authenticator).Authenticate
+  participant postgres as postgres
+  web->>postgres: sessionStore.UserBySession → (*SessionRepository).UserBySession
+  participant Database as Database
+  postgres->>Database: SELECT sessions, SELECT users
+  participant notes as notes
+  web->>notes: (*Service).Create
+  notes->>postgres: Repository.Create → (*NoteRepository).Create
+  postgres->>Database: INSERT notes
+  postgres->>Database: INSERT audit_events

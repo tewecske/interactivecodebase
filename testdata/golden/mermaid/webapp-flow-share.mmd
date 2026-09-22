@@ -1,0 +1,19 @@
+sequenceDiagram
+  actor Browser
+  autonumber
+  participant web as web
+  Browser->>web: POST /{lang}/notes/{id}/share
+  web->>web: (*noteHandler).user
+  web->>web: (*Authenticator).Authenticate
+  participant postgres as postgres
+  web->>postgres: sessionStore.UserBySession → (*SessionRepository).UserBySession
+  participant Database as Database
+  postgres->>Database: SELECT sessions, SELECT users
+  participant notes as notes
+  web->>notes: (*Service).Share
+  notes->>postgres: Repository.Get → (*NoteRepository).Get
+  postgres->>Database: SELECT notes
+  participant mail as mail
+  notes->>mail: Mailer.Send → (*SMTPMailer).Send
+  participant Mail_server as Mail server
+  mail->>Mail_server: smtp.SendMail {?}

@@ -20,7 +20,7 @@ make build            # builds bin/icb
 bin/icb --help
 bin/icb version
 bin/icb analyze ../goweb       # analyze a module and print a summary
-bin/icb serve ../goweb         # web UI + JSON API + MCP on 127.0.0.1:8080 (not yet)
+bin/icb serve ../goweb         # JSON API (web UI and MCP to come) on 127.0.0.1:8080
 bin/icb mcp ../goweb           # MCP over stdio, for AI agents (not yet)
 ```
 
@@ -46,6 +46,26 @@ Or install it:
 ```sh
 go install github.com/tewecske/interactivecodebase/cmd/icb@latest
 ```
+
+## JSON API
+
+`icb serve` analyzes the module once and serves:
+
+| Endpoint | |
+|---|---|
+| `/api/summary` | module, counts, timings |
+| `/api/routes?access=&method=&q=` | routes with access level, handler, position |
+| `/api/node?id=` | a node with its incoming and outgoing edges |
+| `/api/page?route=` | templates, requests, assets and navigation of a page |
+| `/api/flow?route=&method=&prune=` | a route's call tree down to sinks and tables |
+| `/api/paths?from=&to=` | call paths between two nodes |
+| `/api/source?file=&start=&end=` | source lines (confined to the module) |
+| `/api/tables`, `/api/table?name=` | tables; a table's columns, foreign keys, queries and routes |
+| `/api/search?q=&kind=` | full-text search over nodes |
+| `/api/diagrams/{sitemap,flow,types,er}` | Mermaid source plus the graph IDs behind its nodes |
+
+`route` takes a route key such as `POST /{lang}/groups`. Remote access with authentication comes with #23;
+until then keep the default `127.0.0.1` address.
 
 ## Development
 
