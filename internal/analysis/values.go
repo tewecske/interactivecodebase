@@ -3,6 +3,7 @@ package analysis
 import (
 	"go/constant"
 	"go/token"
+	"regexp"
 	"slices"
 
 	"golang.org/x/tools/go/callgraph"
@@ -22,13 +23,22 @@ const (
 // "GET "+prefix+"/notes" inside a loop over lang.Codes() into
 // {"GET /en/notes", "GET /de/notes"}. Parts it cannot determine become
 // Unknown, so the result is never empty.
+//
+// It only looks inside the module's own functions; calls into other
+// packages are opaque except for a few string builders it models
+// (path.Join, filepath.Join, fmt.Sprintf).
 type evaluator struct {
 	cg      *callgraph.Graph
+	module  string
 	visited map[ssa.Value]bool
 }
 
-func newEvaluator(cg *callgraph.Graph) *evaluator {
-	return &evaluator{cg: cg, visited: map[ssa.Value]bool{}}
+func newEvaluator(cg *callgraph.Graph, module string) *evaluator {
+	return &evaluator{cg: cg, module: module, visited: map[ssa.Value]bool{}}
+}
+
+func (e *evaluator) own(fn *ssa.Function) bool {
+	return len(fn.Blocks) > 0 && inModule(e.module, funcPkg(fn))
 }
 
 // strings returns the possible string values of v, deduplicated, in order.
@@ -71,7 +81,14 @@ func (e *evaluator) str(v ssa.Value, depth int) []string {
 	case *ssa.Parameter:
 		return e.param(v, depth+1)
 	case *ssa.Call:
-		if fn := v.Common().StaticCallee(); fn != nil && len(fn.Blocks) > 0 {
+		fn := v.Common().StaticCallee()
+		if fn == nil {
+			break
+		}
+		if model := e.model(fn.String(), v.Common().Args, depth+1); model != nil {
+			return model
+		}
+		if e.own(fn) {
 			var out []string
 			for _, r := range returns(fn) {
 				out = union(out, e.str(r, depth+1))
@@ -128,7 +145,7 @@ func (e *evaluator) slice(v ssa.Value, depth int) ([][]string, bool) {
 		}
 	case *ssa.Call:
 		fn := v.Common().StaticCallee()
-		if fn == nil || len(fn.Blocks) == 0 {
+		if fn == nil || !e.own(fn) {
 			return nil, false
 		}
 		rets := returns(fn)
@@ -184,6 +201,9 @@ func (e *evaluator) allocElems(alloc *ssa.Alloc, depth int) ([][]string, bool) {
 // callers.
 func (e *evaluator) param(p *ssa.Parameter, depth int) []string {
 	fn := p.Parent()
+	if e.cg == nil || !e.own(fn) {
+		return []string{Unknown}
+	}
 	idx := slices.Index(fn.Params, p)
 	node := e.cg.Nodes[fn]
 	if idx < 0 || node == nil || len(node.In) == 0 {
@@ -195,16 +215,74 @@ func (e *evaluator) param(p *ssa.Parameter, depth int) []string {
 			continue
 		}
 		common := in.Site.Common()
-		if common.IsInvoke() || idx >= len(common.Args) {
+		argIdx := idx
+		if common.IsInvoke() {
+			// Interface calls pass the receiver separately, not in Args.
+			argIdx--
+		}
+		if argIdx < 0 || argIdx >= len(common.Args) {
 			out = union(out, []string{Unknown})
 			continue
 		}
-		out = union(out, e.str(common.Args[idx], depth+1))
+		out = union(out, e.str(common.Args[argIdx], depth+1))
 	}
 	if len(out) == 0 {
 		return []string{Unknown}
 	}
 	return limit(out)
+}
+
+// verbRE matches one fmt verb, e.g. %s, %-10d, %%.
+var verbRE = regexp.MustCompile(`%[-+# 0]*[0-9*]*(\.[0-9*]+)?[a-zA-Z%]`)
+
+// model evaluates calls to well-known string builders; nil if fn is not one.
+func (e *evaluator) model(fn string, args []ssa.Value, depth int) []string {
+	switch fn {
+	case "path.Join", "path/filepath.Join":
+		if len(args) != 1 {
+			return nil
+		}
+		elems, ok := e.slice(args[0], depth)
+		if !ok {
+			return []string{Unknown}
+		}
+		out := []string{""}
+		for i, el := range elems {
+			if i > 0 {
+				out = concat(out, []string{"/"})
+			}
+			out = concat(out, el)
+		}
+		return out
+	case "fmt.Sprintf":
+		if len(args) != 2 {
+			return nil
+		}
+		formats := e.str(args[0], depth)
+		elems, ok := e.slice(args[1], depth)
+		var out []string
+		for _, format := range formats {
+			parts := verbRE.Split(format, -1)
+			verbs := verbRE.FindAllString(format, -1)
+			res := []string{parts[0]}
+			arg := 0
+			for i, verb := range verbs {
+				switch {
+				case verb == "%%":
+					res = concat(res, []string{"%"})
+				case ok && arg < len(elems):
+					res = concat(res, elems[arg])
+					arg++
+				default:
+					res = concat(res, []string{Unknown})
+				}
+				res = concat(res, []string{parts[i+1]})
+			}
+			out = union(out, res)
+		}
+		return limit(out)
+	}
+	return nil
 }
 
 // returns lists the first result of every return statement in fn.
