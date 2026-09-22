@@ -1,0 +1,16 @@
+{{define "head"}}<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+<nav>
+  <a href="/{{.Lang}}/notes">Notes</a>
+  <a href="/{{.Lang}}/weather">Weather</a>
+  <a href="/{{.Lang}}/sign-in">Sign in</a>
+</nav>
+{{end}}
+{{define "foot"}}</body>
+</html>{{end}}

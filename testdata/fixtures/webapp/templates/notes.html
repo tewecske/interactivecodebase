@@ -1,0 +1,11 @@
+{{template "head" .}}
+<h1>Notes</h1>
+<form method="post" action="{{.CreateURL}}" hx-post="{{.CreateURL}}">
+  <input name="title" required>
+  <textarea name="body"></textarea>
+  <button>Add</button>
+</form>
+<ul>
+  {{range .Notes}}<li><a href="{{.URL}}">{{.Title}}</a></li>{{end}}
+</ul>
+{{template "foot" .}}

@@ -1,0 +1,8 @@
+{{template "head" .}}
+{{if .Email}}<p>Hi {{.Email}}</p>{{end}}
+<form hx-get="/{{.Lang}}/weather" hx-target="body">
+  <input name="city">
+</form>
+<p>{{.Forecast.City}}: {{.Forecast.Summary}}, {{.Forecast.TempC}}°C</p>
+<img src="/static/logo.svg" alt="">
+{{template "foot" .}}

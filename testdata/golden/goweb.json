@@ -1,0 +1,848 @@
+{
+  "module": "github.com/tewecske/goweb",
+  "commit": "2648126f6887a82540032fa7ef8792f2556b95e6",
+  "routes": [
+    {
+      "method": "GET",
+      "pattern": "/",
+      "handler": "github.com/tewecske/goweb/internal/adapter/http.defaultLocale",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{language}",
+      "handler": "github.com/tewecske/goweb/internal/adapter/http.home$1",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{language}/{path...}",
+      "handler": "github.com/tewecske/goweb/internal/adapter/http.localized$1",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/sign-up",
+      "variants": [
+        "/en/sign-up",
+        "/hu/sign-up"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).signUp",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/sign-up",
+      "variants": [
+        "/en/sign-up",
+        "/hu/sign-up"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).signUp",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/sign-in",
+      "variants": [
+        "/en/sign-in",
+        "/hu/sign-in"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).signIn",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/sign-in",
+      "variants": [
+        "/en/sign-in",
+        "/hu/sign-in"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).signIn",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/home",
+      "variants": [
+        "/en/home",
+        "/hu/home"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).home",
+      "access": "authenticated"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/about",
+      "variants": [
+        "/en/about",
+        "/hu/about"
+      ],
+      "handler": "github.com/tewecske/goweb/internal/adapter/http.about$1",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/sign-out",
+      "variants": [
+        "/en/sign-out",
+        "/hu/sign-out"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).signOut",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/account/settings",
+      "variants": [
+        "/en/account/settings",
+        "/hu/account/settings"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.settingsHandler).page",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/account/settings/profile",
+      "variants": [
+        "/en/account/settings/profile",
+        "/hu/account/settings/profile"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.settingsHandler).updateProfile",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/account/settings/password",
+      "variants": [
+        "/en/account/settings/password",
+        "/hu/account/settings/password"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.settingsHandler).updatePassword",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/account/settings/locale",
+      "variants": [
+        "/en/account/settings/locale",
+        "/hu/account/settings/locale"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.settingsHandler).updateLocale",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/account/settings/identity",
+      "variants": [
+        "/en/account/settings/identity",
+        "/hu/account/settings/identity"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.settingsHandler).unlinkIdentity",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/account/settings/identity/link",
+      "variants": [
+        "/en/account/settings/identity/link",
+        "/hu/account/settings/identity/link"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.settingsHandler).linkIdentity",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/account/theme",
+      "variants": [
+        "/en/account/theme",
+        "/hu/account/theme"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.settingsHandler).updateTheme",
+      "access": "authenticated"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/groups",
+      "variants": [
+        "/en/groups",
+        "/hu/groups"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).list",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/groups",
+      "variants": [
+        "/en/groups",
+        "/hu/groups"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).create",
+      "access": "authenticated"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin",
+      "variants": [
+        "/en/admin",
+        "/hu/admin"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).index",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/users",
+      "variants": [
+        "/en/admin/users",
+        "/hu/admin/users"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).list",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/audit",
+      "variants": [
+        "/en/admin/audit",
+        "/hu/admin/audit"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).audit",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/system",
+      "variants": [
+        "/en/admin/system",
+        "/hu/admin/system"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).system",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/system/maintenance/run",
+      "variants": [
+        "/en/admin/system/maintenance/run",
+        "/hu/admin/system/maintenance/run"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).runMaintenance",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/ratelimits",
+      "variants": [
+        "/en/admin/ratelimits",
+        "/hu/admin/ratelimits"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).rateLimits",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/ratelimits/clear",
+      "variants": [
+        "/en/admin/ratelimits/clear",
+        "/hu/admin/ratelimits/clear"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).clearRateLimit",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/usage",
+      "variants": [
+        "/en/admin/usage",
+        "/hu/admin/usage"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).usage",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/suspicious",
+      "variants": [
+        "/en/admin/suspicious",
+        "/hu/admin/suspicious"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).suspicious",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/users/new",
+      "variants": [
+        "/en/admin/users/new",
+        "/hu/admin/users/new"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).createAccount",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/users/new",
+      "variants": [
+        "/en/admin/users/new",
+        "/hu/admin/users/new"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).createAccount",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/users/{id}",
+      "variants": [
+        "/en/admin/users/{id}",
+        "/hu/admin/users/{id}"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).detail",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/users/{id}/edit",
+      "variants": [
+        "/en/admin/users/{id}/edit",
+        "/hu/admin/users/{id}/edit"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).editAccount",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/users/{id}/edit",
+      "variants": [
+        "/en/admin/users/{id}/edit",
+        "/hu/admin/users/{id}/edit"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).editAccount",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/users/{id}/delete",
+      "variants": [
+        "/en/admin/users/{id}/delete",
+        "/hu/admin/users/{id}/delete"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).deleteAccount",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/users/{id}/sessions/revoke",
+      "variants": [
+        "/en/admin/users/{id}/sessions/revoke",
+        "/hu/admin/users/{id}/sessions/revoke"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).revokeSessions",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/users/{id}/confirm-email",
+      "variants": [
+        "/en/admin/users/{id}/confirm-email",
+        "/hu/admin/users/{id}/confirm-email"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).confirmEmailAccount",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/users/{id}/send-confirmation",
+      "variants": [
+        "/en/admin/users/{id}/send-confirmation",
+        "/hu/admin/users/{id}/send-confirmation"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).sendConfirmation",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/users/{id}/identities/{identityID}/remove",
+      "variants": [
+        "/en/admin/users/{id}/identities/{identityID}/remove",
+        "/hu/admin/users/{id}/identities/{identityID}/remove"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).removeIdentity",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/users/{id}/lockout/clear",
+      "variants": [
+        "/en/admin/users/{id}/lockout/clear",
+        "/hu/admin/users/{id}/lockout/clear"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).clearLockout",
+      "access": "admin"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/groups/join",
+      "variants": [
+        "/en/groups/join",
+        "/hu/groups/join"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).join",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/groups/join",
+      "variants": [
+        "/en/groups/join",
+        "/hu/groups/join"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).join",
+      "access": "authenticated"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/groups/{id}",
+      "variants": [
+        "/en/groups/{id}",
+        "/hu/groups/{id}"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).detail",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/groups/{id}/rename",
+      "variants": [
+        "/en/groups/{id}/rename",
+        "/hu/groups/{id}/rename"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).rename",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/groups/{id}/invite",
+      "variants": [
+        "/en/groups/{id}/invite",
+        "/hu/groups/{id}/invite"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).rotateInvite",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/groups/{id}/leave",
+      "variants": [
+        "/en/groups/{id}/leave",
+        "/hu/groups/{id}/leave"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).leave",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/groups/{id}/members/{memberID}/role",
+      "variants": [
+        "/en/groups/{id}/members/{memberID}/role",
+        "/hu/groups/{id}/members/{memberID}/role"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).changeRole",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/groups/{id}/members/{memberID}/remove",
+      "variants": [
+        "/en/groups/{id}/members/{memberID}/remove",
+        "/hu/groups/{id}/members/{memberID}/remove"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.groupHandler).removeMember",
+      "access": "authenticated"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/resend-confirmation",
+      "variants": [
+        "/en/resend-confirmation",
+        "/hu/resend-confirmation"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).resendConfirmation",
+      "access": "public"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/resend-confirmation",
+      "variants": [
+        "/en/resend-confirmation",
+        "/hu/resend-confirmation"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).resendConfirmation",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/forgot-password",
+      "variants": [
+        "/en/forgot-password",
+        "/hu/forgot-password"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).forgotPassword",
+      "access": "public"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/forgot-password",
+      "variants": [
+        "/en/forgot-password",
+        "/hu/forgot-password"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).forgotPassword",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/password-forgotten",
+      "variants": [
+        "/en/password-forgotten",
+        "/hu/password-forgotten"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).forgotPassword",
+      "access": "public"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/password-forgotten",
+      "variants": [
+        "/en/password-forgotten",
+        "/hu/password-forgotten"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).forgotPassword",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/check-inbox",
+      "variants": [
+        "/en/check-inbox",
+        "/hu/check-inbox"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).resendConfirmation",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/confirm-email",
+      "variants": [
+        "/en/confirm-email",
+        "/hu/confirm-email"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).confirmEmail",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/reset-password",
+      "variants": [
+        "/en/reset-password",
+        "/hu/reset-password"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).resetPassword",
+      "access": "public"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/reset-password",
+      "variants": [
+        "/en/reset-password",
+        "/hu/reset-password"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).resetPassword",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/password-reset",
+      "variants": [
+        "/en/password-reset",
+        "/hu/password-reset"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).resetPassword",
+      "access": "public"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/password-reset",
+      "variants": [
+        "/en/password-reset",
+        "/hu/password-reset"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).resetPassword",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/guest/write",
+      "variants": [
+        "/en/guest/write",
+        "/hu/guest/write"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).guestWrite",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/guest/write",
+      "variants": [
+        "/en/guest/write",
+        "/hu/guest/write"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).guestWrite",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/guest/transfer",
+      "variants": [
+        "/en/guest/transfer",
+        "/hu/guest/transfer"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).guestTransfer",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/guest/transfer",
+      "variants": [
+        "/en/guest/transfer",
+        "/hu/guest/transfer"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).guestTransfer",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/guest/upgrade",
+      "variants": [
+        "/en/guest/upgrade",
+        "/hu/guest/upgrade"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).guestUpgrade",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/guest/upgrade",
+      "variants": [
+        "/en/guest/upgrade",
+        "/hu/guest/upgrade"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).guestUpgrade",
+      "access": "guest"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/oauth/{?}",
+      "variants": [
+        "/en/oauth/{?}",
+        "/hu/oauth/{?}"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).oauthStart",
+      "access": "public",
+      "conditional": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/oauth/{?}/callback",
+      "variants": [
+        "/en/oauth/{?}/callback",
+        "/hu/oauth/{?}/callback"
+      ],
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).oauthCallback",
+      "access": "public",
+      "conditional": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/confirm-email",
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).confirmEmail",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/reset-password",
+      "handler": "(*github.com/tewecske/goweb/internal/adapter/http.authHandler).resetPassword",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/static/{path...}",
+      "handler": "net/http.FileServer",
+      "access": "public",
+      "static": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/healthz",
+      "handler": "github.com/tewecske/goweb/internal/adapter/http.health",
+      "access": "public"
+    }
+  ],
+  "tables": [
+    "users",
+    "sessions",
+    "oauth_identities",
+    "email_verification_tokens",
+    "password_reset_tokens",
+    "guest_claim_codes",
+    "groups",
+    "group_members",
+    "login_attempts",
+    "audit_log",
+    "usage_events",
+    "oauth_states"
+  ],
+  "foreignKeys": [
+    {
+      "table": "sessions",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "oauth_identities",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "email_verification_tokens",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "password_reset_tokens",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "guest_claim_codes",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "login_attempts",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "set null"
+    },
+    {
+      "table": "audit_log",
+      "column": "actor_user_id",
+      "references": "users.id",
+      "onDelete": "set null"
+    },
+    {
+      "table": "usage_events",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "set null"
+    },
+    {
+      "table": "groups",
+      "column": "created_by",
+      "references": "users.id",
+      "onDelete": "set null"
+    },
+    {
+      "table": "group_members",
+      "column": "group_id",
+      "references": "groups.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "group_members",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "oauth_states",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    }
+  ],
+  "implementations": [
+    {
+      "interface": "github.com/tewecske/goweb/internal/service.GroupMembershipRepository",
+      "concrete": "*github.com/tewecske/goweb/internal/store/postgres.GroupMembershipRepository"
+    },
+    {
+      "interface": "github.com/tewecske/goweb/internal/service.MailSender",
+      "concrete": "*github.com/tewecske/goweb/internal/adapter/mail.DevelopmentSender"
+    }
+  ],
+  "sinks": [
+    {
+      "kind": "sink.sql",
+      "in": "github.com/tewecske/goweb/internal/store/postgres.createGroup",
+      "tables": [
+        "groups"
+      ],
+      "op": "insert"
+    },
+    {
+      "kind": "sink.sql",
+      "in": "(*github.com/tewecske/goweb/internal/store/postgres.UserRepository).FindUserByID",
+      "tables": [
+        "users"
+      ],
+      "op": "select"
+    },
+    {
+      "kind": "sink.env",
+      "in": "github.com/tewecske/goweb/cmd/web.main",
+      "detail": "os.Getenv passed as a func value to config.Load"
+    },
+    {
+      "kind": "sink.file",
+      "in": "github.com/tewecske/goweb/internal/store.loadMigrations",
+      "detail": "fs.ReadFile on the embedded migrations"
+    }
+  ],
+  "flows": [
+    {
+      "route": "POST /{lang}/groups",
+      "reaches": [
+        {
+          "table": "groups",
+          "op": "insert"
+        },
+        {
+          "table": "group_members",
+          "op": "insert"
+        },
+        {
+          "table": "users",
+          "op": "select"
+        }
+      ]
+    }
+  ]
+}

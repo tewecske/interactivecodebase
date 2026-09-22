@@ -1,0 +1,407 @@
+{
+  "module": "example.com/webapp",
+  "routes": [
+    {
+      "method": "GET",
+      "pattern": "/{$}",
+      "handler": "example.com/webapp/internal/web.redirectToDefault",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/healthz",
+      "handler": "example.com/webapp/internal/web.health",
+      "access": "public"
+    },
+    {
+      "method": "GET",
+      "pattern": "/static/{path...}",
+      "handler": "net/http.FileServer",
+      "access": "public",
+      "static": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/sign-in",
+      "variants": [
+        "/en/sign-in",
+        "/de/sign-in"
+      ],
+      "handler": "(*example.com/webapp/internal/web.accountHandler).signIn",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/sign-in",
+      "variants": [
+        "/en/sign-in",
+        "/de/sign-in"
+      ],
+      "handler": "(*example.com/webapp/internal/web.accountHandler).signIn",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/notes",
+      "variants": [
+        "/en/notes",
+        "/de/notes"
+      ],
+      "handler": "(*example.com/webapp/internal/web.noteHandler).list",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/notes",
+      "variants": [
+        "/en/notes",
+        "/de/notes"
+      ],
+      "handler": "(*example.com/webapp/internal/web.noteHandler).create",
+      "access": "authenticated"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/notes/{id}",
+      "variants": [
+        "/en/notes/{id}",
+        "/de/notes/{id}"
+      ],
+      "handler": "(*example.com/webapp/internal/web.noteHandler).detail",
+      "access": "authenticated"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/notes/{id}/share",
+      "variants": [
+        "/en/notes/{id}/share",
+        "/de/notes/{id}/share"
+      ],
+      "handler": "(*example.com/webapp/internal/web.noteHandler).share",
+      "access": "authenticated"
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/weather",
+      "variants": [
+        "/en/weather",
+        "/de/weather"
+      ],
+      "handler": "example.com/webapp/internal/web.weatherPage$1",
+      "access": "public",
+      "optionalAuth": true
+    },
+    {
+      "method": "GET",
+      "pattern": "/{lang}/admin/export",
+      "variants": [
+        "/en/admin/export",
+        "/de/admin/export"
+      ],
+      "handler": "(*example.com/webapp/internal/web.adminHandler).export",
+      "access": "admin"
+    },
+    {
+      "method": "POST",
+      "pattern": "/{lang}/admin/reindex",
+      "variants": [
+        "/en/admin/reindex",
+        "/de/admin/reindex"
+      ],
+      "handler": "(*example.com/webapp/internal/web.adminHandler).reindex",
+      "access": "admin",
+      "middleware": [
+        "example.com/webapp/internal/web.requireAdmin"
+      ]
+    },
+    {
+      "method": "GET",
+      "pattern": "/auth/{?}/callback",
+      "handler": "(*example.com/webapp/internal/web.accountHandler).oauthCallback",
+      "access": "public",
+      "conditional": true
+    }
+  ],
+  "middleware": [
+    "example.com/webapp/internal/web.withRequestID"
+  ],
+  "tables": [
+    "users",
+    "sessions",
+    "notes",
+    "audit_events"
+  ],
+  "foreignKeys": [
+    {
+      "table": "sessions",
+      "column": "user_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "notes",
+      "column": "owner_id",
+      "references": "users.id",
+      "onDelete": "cascade"
+    },
+    {
+      "table": "audit_events",
+      "column": "note_id",
+      "references": "notes.id",
+      "onDelete": "set null"
+    }
+  ],
+  "implementations": [
+    {
+      "interface": "example.com/webapp/internal/notes.Repository",
+      "concrete": "*example.com/webapp/internal/store/postgres.NoteRepository"
+    },
+    {
+      "interface": "example.com/webapp/internal/notes.Mailer",
+      "concrete": "*example.com/webapp/internal/mail.SMTPMailer"
+    },
+    {
+      "interface": "example.com/webapp/internal/web.sessionStore",
+      "concrete": "*example.com/webapp/internal/store/postgres.SessionRepository"
+    }
+  ],
+  "sinks": [
+    {
+      "kind": "sink.sql",
+      "in": "(*example.com/webapp/internal/store/postgres.NoteRepository).Create",
+      "tables": [
+        "notes"
+      ],
+      "op": "insert"
+    },
+    {
+      "kind": "sink.sql",
+      "in": "(*example.com/webapp/internal/store/postgres.NoteRepository).Create",
+      "tables": [
+        "audit_events"
+      ],
+      "op": "insert"
+    },
+    {
+      "kind": "sink.sql",
+      "in": "(*example.com/webapp/internal/store/postgres.NoteRepository).ListByOwner",
+      "tables": [
+        "notes"
+      ],
+      "op": "select",
+      "detail": "const noteSelect + concatenation"
+    },
+    {
+      "kind": "sink.sql",
+      "in": "(*example.com/webapp/internal/store/postgres.NoteRepository).Get",
+      "tables": [
+        "notes"
+      ],
+      "op": "select",
+      "detail": "const noteSelect + concatenation"
+    },
+    {
+      "kind": "sink.sql",
+      "in": "(*example.com/webapp/internal/store/postgres.SessionRepository).UserBySession",
+      "tables": [
+        "sessions",
+        "users"
+      ],
+      "op": "select",
+      "detail": "JOIN"
+    },
+    {
+      "kind": "sink.sql",
+      "in": "(*example.com/webapp/internal/store/postgres.SessionRepository).CreateSession",
+      "tables": [
+        "sessions",
+        "users"
+      ],
+      "op": "insert",
+      "detail": "INSERT ... SELECT"
+    },
+    {
+      "kind": "sink.smtp",
+      "in": "(*example.com/webapp/internal/mail.SMTPMailer).Send",
+      "detail": "net/smtp.SendMail"
+    },
+    {
+      "kind": "sink.http",
+      "in": "(*example.com/webapp/internal/weather.Client).Forecast",
+      "detail": "https://api.weather.example/v1/forecast"
+    },
+    {
+      "kind": "sink.file",
+      "in": "example.com/webapp/internal/export.WriteCSV",
+      "detail": "os.Create"
+    },
+    {
+      "kind": "sink.exec",
+      "in": "example.com/webapp/internal/export.WriteCSV",
+      "detail": "gzip"
+    },
+    {
+      "kind": "sink.env",
+      "in": "example.com/webapp/cmd/server.main",
+      "detail": "os.Getenv passed as a func value to config.Load"
+    }
+  ],
+  "flows": [
+    {
+      "route": "POST /{lang}/notes",
+      "reaches": [
+        {
+          "table": "sessions",
+          "op": "select"
+        },
+        {
+          "table": "notes",
+          "op": "insert"
+        },
+        {
+          "table": "audit_events",
+          "op": "insert"
+        }
+      ]
+    },
+    {
+      "route": "POST /{lang}/notes/{id}/share",
+      "reaches": [
+        {
+          "table": "notes",
+          "op": "select"
+        },
+        {
+          "sink": "sink.smtp"
+        }
+      ]
+    },
+    {
+      "route": "GET /{lang}/weather",
+      "reaches": [
+        {
+          "table": "sessions",
+          "op": "select"
+        },
+        {
+          "sink": "sink.http"
+        }
+      ]
+    },
+    {
+      "route": "GET /{lang}/admin/export",
+      "reaches": [
+        {
+          "table": "notes",
+          "op": "select"
+        },
+        {
+          "sink": "sink.file"
+        },
+        {
+          "sink": "sink.exec"
+        }
+      ]
+    },
+    {
+      "route": "POST /{lang}/sign-in",
+      "reaches": [
+        {
+          "table": "sessions",
+          "op": "insert"
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "route": "GET /{lang}/notes",
+      "template": "notes.html",
+      "requests": [
+        {
+          "method": "POST",
+          "url": "/{lang}/notes",
+          "trigger": "hx-post"
+        },
+        {
+          "method": "POST",
+          "url": "/{lang}/notes",
+          "trigger": "form"
+        }
+      ],
+      "navigatesTo": [
+        "GET /{lang}/notes/{id}",
+        "GET /{lang}/notes",
+        "GET /{lang}/weather",
+        "GET /{lang}/sign-in"
+      ],
+      "assets": [
+        "/static/app.css",
+        "/static/htmx.min.js"
+      ]
+    },
+    {
+      "route": "GET /{lang}/notes/{id}",
+      "template": "note.html",
+      "requests": [
+        {
+          "method": "POST",
+          "url": "/{lang}/notes/{id}/share",
+          "trigger": "hx-post"
+        }
+      ],
+      "navigatesTo": [
+        "GET /{lang}/notes",
+        "GET /{lang}/weather",
+        "GET /{lang}/sign-in"
+      ],
+      "assets": [
+        "/static/app.css",
+        "/static/htmx.min.js"
+      ]
+    },
+    {
+      "route": "GET /{lang}/weather",
+      "template": "weather.html",
+      "requests": [
+        {
+          "method": "GET",
+          "url": "/{lang}/weather",
+          "trigger": "hx-get"
+        }
+      ],
+      "navigatesTo": [
+        "GET /{lang}/notes",
+        "GET /{lang}/weather",
+        "GET /{lang}/sign-in"
+      ],
+      "assets": [
+        "/static/app.css",
+        "/static/htmx.min.js",
+        "/static/logo.svg"
+      ]
+    },
+    {
+      "route": "GET /{lang}/sign-in",
+      "template": "signin.html",
+      "requests": [
+        {
+          "method": "POST",
+          "url": "/{lang}/sign-in",
+          "trigger": "form"
+        }
+      ],
+      "navigatesTo": [
+        "GET /{lang}/notes",
+        "GET /{lang}/weather",
+        "GET /{lang}/sign-in"
+      ],
+      "assets": [
+        "/static/app.css",
+        "/static/htmx.min.js"
+      ]
+    }
+  ]
+}

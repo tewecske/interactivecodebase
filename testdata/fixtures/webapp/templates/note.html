@@ -1,0 +1,9 @@
+{{template "head" .}}
+<a href="{{.BackURL}}">Back</a>
+<h1>{{.Title}}</h1>
+<p>{{.Body}}</p>
+<form hx-post="{{.ShareURL}}" hx-swap="none">
+  <input name="to" type="email" required>
+  <button>Share</button>
+</form>
+{{template "foot" .}}
