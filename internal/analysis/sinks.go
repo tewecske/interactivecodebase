@@ -11,6 +11,7 @@ import (
 	"golang.org/x/tools/go/ssa"
 
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/sqlparse"
 )
 
 // SinkRule marks calls to Func as a sink of Kind. Arg is the index of the
@@ -78,6 +79,47 @@ type Sink struct {
 	// config.Load(os.Getenv); its calls happen elsewhere.
 	FuncValue bool
 	Pos       token.Pos
+	// Query is what an SQL sink's text does, merged over all its Values.
+	Query *sqlparse.Query
+}
+
+// analyzeQueries parses the SQL of every SQL sink.
+func analyzeQueries(sinks []Sink, d sqlparse.Dialect) {
+	for i := range sinks {
+		s := &sinks[i]
+		if s.Kind != graph.KindSinkSQL || len(s.Values) == 0 {
+			continue
+		}
+		merged := &sqlparse.Query{}
+		for _, v := range s.Values {
+			if strings.TrimSpace(v) == Unknown {
+				merged.Partial = true
+				continue
+			}
+			q := d.Query(v)
+			merged.Partial = merged.Partial || q.Partial
+			if merged.Err == nil {
+				merged.Err = q.Err
+			}
+			for _, op := range q.Ops {
+				if !slices.Contains(merged.Ops, op) {
+					merged.Ops = append(merged.Ops, op)
+				}
+			}
+			for _, t := range q.Tables {
+				i := slices.IndexFunc(merged.Tables, func(u sqlparse.TableUse) bool { return u.Name == t.Name })
+				if i < 0 {
+					merged.Tables = append(merged.Tables, t)
+					continue
+				}
+				if merged.Tables[i].Op == sqlparse.OpSelect {
+					merged.Tables[i].Op = t.Op
+				}
+				merged.Tables[i].Columns = union(merged.Tables[i].Columns, t.Columns)
+			}
+		}
+		s.Query = merged
+	}
 }
 
 // ID is the sink's graph node ID.
