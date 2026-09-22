@@ -206,6 +206,7 @@ func TestQueryWebapp(t *testing.T) {
 			"sink.sql (*sql.Tx).QueryRowContext \"INSERT INTO notes (owner_id, title, body, created_at) VALUES ($1, $2, $3, $4) RETURNING id\"", nil},
 		{name: "flow method", flags: []string{"-method", "GET"}, args: []string{"flow", "POST /{lang}/sign-in"}, code: ExitOK, out: "table sessions (select"},
 		{name: "flow bad prune", flags: []string{"-prune", "bogus"}, args: []string{"flow", "POST /{lang}/notes"}, code: ExitUsage, out: `invalid -prune "bogus"`},
+		{"page", []string{"page", "GET /{lang}/notes/{id}"}, ExitOK, "POST /{lang}/notes/{id}/share\thx-post\ttemplates/note.html:", nil},
 		{"routes", []string{"routes"}, ExitOK,
 			"POST /{lang}/admin/reindex\tadmin\texample.com/webapp/internal/web.requireAdmin > (*example.com/webapp/internal/web.adminHandler).reindex\tinternal/web/router.go:", nil},
 		{"ambiguous node", []string{"callees", "Create"}, ExitError, "matches several nodes; use an ID", nil},

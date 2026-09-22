@@ -53,6 +53,29 @@ func TestGowebCallGraph(t *testing.T) {
 		}
 	})
 
+	t.Run("groups page requests", func(t *testing.T) {
+		var targets []string
+		for _, nb := range neighbors(t, r, graph.NodeID(graph.KindRoute, "GET /{lang}/groups"), graph.EdgeRequests) {
+			targets = append(targets, nb.Node.Attrs["target"])
+		}
+		for _, want := range []string{
+			"POST /{lang}/groups", "POST /{lang}/groups/join", "POST /{lang}/groups/{id}/rename",
+			"POST /{lang}/groups/{id}/invite", "POST /{lang}/groups/{id}/leave",
+			"POST /{lang}/groups/{id}/members/{memberID}/role", "POST /{lang}/groups/{id}/members/{memberID}/remove",
+		} {
+			if !slices.Contains(targets, want) {
+				t.Errorf("groups page does not request %s; got %v", want, targets)
+			}
+		}
+		var assets []string
+		for _, nb := range neighbors(t, r, graph.NodeID(graph.KindRoute, "GET /{lang}/groups"), graph.EdgeLoads) {
+			assets = append(assets, nb.Node.Name)
+		}
+		if !sameSet(assets, []string{"/static/app.css", "/static/htmx.min.js"}) {
+			t.Errorf("groups page assets = %v", assets)
+		}
+	})
+
 	t.Run("handlers have nodes", func(t *testing.T) {
 		for _, route := range exp.Routes {
 			if !strings.Contains(route.Handler, exp.Module) {

@@ -69,7 +69,9 @@ type Result struct {
 	// MigrationDirs (the directories actually used).
 	Schema        *sqlparse.Schema
 	MigrationDirs []string
-	Stats         Stats
+	// Templates are the parsed template files.
+	Templates []*Template
+	Stats     Stats
 
 	scopes map[*ssa.Function]*methodScope
 }
@@ -142,6 +144,7 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	analyzeQueries(r.Sinks, sqlparse.Postgres)
 	r.scopes = methodScopes(own)
 	newAuthClassifier(r, own, r.scopes, opts.AuthFuncs).classify(r.Routes)
+	buildPages(r, own)
 	if r.Schema, r.MigrationDirs, err = sqlparse.LoadMigrations(r.Dir, opts.MigrationDirs); err != nil {
 		return nil, err
 	}
