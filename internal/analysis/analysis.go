@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,6 +38,8 @@ type Options struct {
 	Exclude []string
 	// Tests includes the module's test files.
 	Tests bool
+	// ExtraSinks are sink rules added to DefaultSinks.
+	ExtraSinks []SinkRule
 }
 
 // Result is an analyzed module.
@@ -52,7 +55,10 @@ type Result struct {
 	CallGraph *callgraph.Graph
 	// Routes are the HTTP routes registered in the module, in source order.
 	Routes []Route
-	Stats  Stats
+	// Sinks are the calls that leave the program: SQL, files, HTTP, SMTP,
+	// processes and environment reads.
+	Sinks []Sink
+	Stats Stats
 }
 
 // Stats describes an analysis run.
@@ -118,6 +124,7 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	}
 	own := moduleFunctions(r, funcs)
 	r.Routes = discoverRoutes(r, own)
+	r.Sinks = detectSinks(r, own, append(slices.Clone(DefaultSinks), opts.ExtraSinks...))
 	b := newBuilder(r, own, opts.Exclude)
 	if err := r.Graph.Write(ctx, b.write); err != nil {
 		return nil, errors.Join(err, r.Graph.Close())

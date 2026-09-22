@@ -119,7 +119,66 @@ func (b *builder) write(w *graph.Writer) error {
 	if err := b.addImplements(); err != nil {
 		return err
 	}
+	if err := b.addSinks(); err != nil {
+		return err
+	}
 	return b.addRoutes()
+}
+
+// addSinks adds a node per sink call site, called by its containing function.
+func (b *builder) addSinks() error {
+	for _, s := range b.r.Sinks {
+		id := s.ID(b.fset, b.relFile)
+		attrs := map[string]string{"callee": s.Callee, "caller": origin(s.Caller).String(), "resolved": "false"}
+		if s.Resolved() {
+			attrs["resolved"] = "true"
+		}
+		detail := strings.Join(s.Values, "\n")
+		if s.FuncValue {
+			attrs["funcValue"] = "true"
+			detail = s.Callee + " passed as a function value"
+		}
+		err := b.w.AddNode(graph.Node{
+			ID:      id,
+			Kind:    s.Kind,
+			Name:    shortFuncName(s.Callee),
+			Package: funcPkg(s.Caller).Path(),
+			Detail:  detail,
+			Pos:     b.pos(s.Pos, token.NoPos),
+			Attrs:   attrs,
+		})
+		if err != nil {
+			return err
+		}
+		if err := b.addFunc(s.Caller); err != nil {
+			return err
+		}
+		edge := graph.Edge{From: FuncID(s.Caller), To: id, Kind: graph.EdgeCalls, Pos: b.pos(s.Pos, token.NoPos)}
+		if err := b.w.AddEdge(edge); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// shortFuncName drops the package path directories from a go/ssa name:
+// "(*database/sql.DB).Query" becomes "(*sql.DB).Query".
+func shortFuncName(name string) string {
+	prefix := ""
+	for _, p := range []string{"(*", "("} {
+		if rest, ok := strings.CutPrefix(name, p); ok {
+			prefix, name = p, rest
+			break
+		}
+	}
+	dot := strings.Index(name, ".")
+	if dot < 0 {
+		return prefix + name
+	}
+	if slash := strings.LastIndex(name[:dot], "/"); slash >= 0 {
+		name = name[slash+1:]
+	}
+	return prefix + name
 }
 
 // addRoutes adds a route node per registered route, linked to its handler.

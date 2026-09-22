@@ -20,7 +20,8 @@ const queryHelp = `Commands:
   paths <from> <to>    shortest call paths between two nodes
 
 A <node> is a node ID ("method:(*example.com/app.T).M"), the ID without its
-kind prefix ("(*example.com/app.T).M"), or search text matching one node.`
+kind prefix ("(*example.com/app.T).M"), or search text matching one node
+(or matching the end of exactly one node's ID).`
 
 // maxCandidates bounds how many matches an ambiguous node argument lists.
 const maxCandidates = 10
@@ -140,6 +141,18 @@ func (q *querier) resolve(ctx context.Context, arg string) (graph.Node, error) {
 		return graph.Node{}, fmt.Errorf("%w %q", errNodeNotFound, arg)
 	case 1:
 		return nodes[0], nil
+	}
+	// Prefer the one node whose ID ends with the text: a qualified name
+	// like "sql.Tx).ExecContext" means that function, not a node that
+	// merely mentions it.
+	var suffix []graph.Node
+	for _, n := range nodes {
+		if strings.HasSuffix(n.ID, arg) {
+			suffix = append(suffix, n)
+		}
+	}
+	if len(suffix) == 1 {
+		return suffix[0], nil
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%q matches several nodes; use an ID:", arg)

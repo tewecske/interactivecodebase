@@ -26,6 +26,33 @@ func TestGowebCallGraph(t *testing.T) {
 		compareRoutes(t, exp.Routes, r.Routes)
 	})
 
+	t.Run("sinks", func(t *testing.T) {
+		checkExpectedSinks(t, r, exp.Sinks)
+		var sql, resolved, inPostgres int
+		for _, s := range r.Sinks {
+			if s.Kind != graph.KindSinkSQL {
+				continue
+			}
+			sql++
+			if s.Resolved() {
+				resolved++
+			}
+			if strings.HasPrefix(funcPkg(s.Caller).Path(), exp.Module+"/internal/store/postgres") {
+				inPostgres++
+			}
+		}
+		t.Logf("%d SQL sinks, %d fully resolved, %d in store/postgres", sql, resolved, inPostgres)
+		if inPostgres == 0 || resolved*100 < sql*85 {
+			t.Errorf("SQL sinks: %d total, %d resolved, %d in postgres", sql, resolved, inPostgres)
+		}
+		templates := slices.ContainsFunc(r.Sinks, func(s Sink) bool {
+			return s.Callee == "html/template.ParseFS" && slices.Contains(s.Values, "*.html")
+		})
+		if !templates {
+			t.Error("template.ParseFS(templates.FS, \"*.html\") not detected")
+		}
+	})
+
 	t.Run("handlers have nodes", func(t *testing.T) {
 		for _, route := range exp.Routes {
 			if !strings.Contains(route.Handler, exp.Module) {
