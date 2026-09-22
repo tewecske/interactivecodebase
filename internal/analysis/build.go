@@ -138,7 +138,33 @@ func (b *builder) write(w *graph.Writer) error {
 	if err := b.addRoutes(); err != nil {
 		return err
 	}
-	return b.addPages()
+	if err := b.addPages(); err != nil {
+		return err
+	}
+	return b.addNavigation()
+}
+
+// addNavigation adds navigates_to edges between routes.
+func (b *builder) addNavigation() error {
+	for _, n := range b.r.Navigation {
+		attrs := map[string]string{"trigger": n.Trigger}
+		pos := graph.Pos{File: n.File, StartLine: n.Line}
+		if n.Template != "" {
+			attrs["template"] = n.Template
+		}
+		if n.Via != nil {
+			attrs["via"] = origin(n.Via).String()
+			pos = b.pos(n.Pos, token.NoPos)
+		}
+		edge := graph.Edge{
+			From: graph.NodeID(graph.KindRoute, n.From), To: graph.NodeID(graph.KindRoute, n.To),
+			Kind: graph.EdgeNavigatesTo, Pos: pos, Attrs: attrs,
+		}
+		if err := b.w.AddEdge(edge); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // TemplateID returns the graph node ID of a template file.
@@ -200,15 +226,15 @@ func (b *builder) addPages() error {
 func (b *builder) addRequest(routeID string, rt Route, ref PageRef, pos graph.Pos) error {
 	id := graph.NodeID(graph.KindHTMXCall, fmt.Sprintf("%s|%s:%d:%s", rt.Key(), ref.Template.File, ref.Line, ref.Attr))
 	name := ref.Method + " " + strings.Join(ref.Values, " | ")
-	if ref.Target != "" {
-		name = ref.Target
+	if len(ref.Targets) > 0 {
+		name = strings.Join(ref.Targets, " | ")
 	}
 	attrs := map[string]string{
 		"method": ref.Method, "url": ref.Raw, "values": strings.Join(ref.Values, "\n"),
 		"trigger": ref.Trigger(), "element": ref.Element, "template": ref.Define,
 	}
-	if ref.Target != "" {
-		attrs["target"] = ref.Target
+	if len(ref.Targets) > 0 {
+		attrs["target"] = strings.Join(ref.Targets, ",")
 	}
 	if err := b.w.AddNode(graph.Node{ID: id, Kind: graph.KindHTMXCall, Name: name, Pos: pos, Attrs: attrs}); err != nil {
 		return err
@@ -216,10 +242,12 @@ func (b *builder) addRequest(routeID string, rt Route, ref PageRef, pos graph.Po
 	if err := b.w.AddEdge(graph.Edge{From: routeID, To: id, Kind: graph.EdgeRequests, Pos: pos}); err != nil {
 		return err
 	}
-	if ref.Target == "" {
-		return nil
+	for _, target := range ref.Targets {
+		if err := b.w.AddEdge(graph.Edge{From: id, To: graph.NodeID(graph.KindRoute, target), Kind: graph.EdgeHandledBy}); err != nil {
+			return err
+		}
 	}
-	return b.w.AddEdge(graph.Edge{From: id, To: graph.NodeID(graph.KindRoute, ref.Target), Kind: graph.EdgeHandledBy})
+	return nil
 }
 
 func (b *builder) addAsset(routeID string, ref PageRef, pos graph.Pos) error {

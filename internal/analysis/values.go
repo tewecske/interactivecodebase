@@ -78,6 +78,13 @@ func (e *evaluator) str(v ssa.Value, depth int) []string {
 		if v.Op == token.MUL {
 			return e.load(v.X, depth+1)
 		}
+	case *ssa.Field:
+		// A field of a slice element being ranged over: def.route.
+		if load, ok := v.X.(*ssa.UnOp); ok && load.Op == token.MUL {
+			if ia, ok := load.X.(*ssa.IndexAddr); ok {
+				return e.elemField(ia.X, v.Field, depth+1)
+			}
+		}
 	case *ssa.Parameter:
 		return e.param(v, depth+1)
 	case *ssa.Extract:
@@ -135,6 +142,29 @@ func (e *evaluator) load(addr ssa.Value, depth int) []string {
 			out = union(out, el)
 		}
 		return limit(out)
+	case *ssa.FieldAddr:
+		if ia, ok := a.X.(*ssa.IndexAddr); ok {
+			return e.elemField(ia.X, a.Field, depth+1)
+		}
+		// A field of a local copy of a slice element: the range variable
+		// def in `for _, def := range defs { ... def.route ... }`.
+		if alloc, ok := a.X.(*ssa.Alloc); ok {
+			var out []string
+			for _, ref := range *alloc.Referrers() {
+				st, ok := ref.(*ssa.Store)
+				if !ok || st.Addr != alloc {
+					continue
+				}
+				if load, ok := st.Val.(*ssa.UnOp); ok && load.Op == token.MUL {
+					if ia, ok := load.X.(*ssa.IndexAddr); ok {
+						out = union(out, e.elemField(ia.X, a.Field, depth+1))
+					}
+				}
+			}
+			if len(out) > 0 {
+				return limit(out)
+			}
+		}
 	case *ssa.Global:
 		if vals := globalStores(a); len(vals) > 0 {
 			var out []string
@@ -178,6 +208,91 @@ func (e *evaluator) slice(v ssa.Value, depth int) ([][]string, bool) {
 		return e.slice(v.X, depth+1)
 	}
 	return nil, false
+}
+
+// elemField evaluates field f of every element of a slice of structs built
+// from composite literals, possibly appended to under conditions.
+func (e *evaluator) elemField(slice ssa.Value, f, depth int) []string {
+	allocs := sliceAllocs(slice, 0)
+	if len(allocs) == 0 {
+		return []string{Unknown}
+	}
+	var out []string
+	for _, alloc := range allocs {
+		for _, ref := range *alloc.Referrers() {
+			ia, ok := ref.(*ssa.IndexAddr)
+			if !ok {
+				continue
+			}
+			for _, r := range *ia.Referrers() {
+				switch r := r.(type) {
+				case *ssa.FieldAddr: // t[i].f = v
+					if r.Field == f {
+						out = union(out, fieldStores(e, r, depth))
+					}
+				case *ssa.Store: // t[i] = S{f: v}, built in a local first
+					if r.Addr != ia {
+						continue
+					}
+					if load, ok := r.Val.(*ssa.UnOp); ok && load.Op == token.MUL {
+						if local, ok := load.X.(*ssa.Alloc); ok {
+							for _, lr := range *local.Referrers() {
+								if fa, ok := lr.(*ssa.FieldAddr); ok && fa.Field == f {
+									out = union(out, fieldStores(e, fa, depth))
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if len(out) == 0 {
+		return []string{Unknown}
+	}
+	return limit(out)
+}
+
+// fieldStores evaluates the values stored through a field address.
+func fieldStores(e *evaluator, fa *ssa.FieldAddr, depth int) []string {
+	var out []string
+	for _, ref := range *fa.Referrers() {
+		if st, ok := ref.(*ssa.Store); ok && st.Addr == fa {
+			out = union(out, e.str(st.Val, depth+1))
+		}
+	}
+	return out
+}
+
+// sliceAllocs finds the array allocations a slice value's elements live in,
+// through slicing, phis and append.
+func sliceAllocs(v ssa.Value, depth int) []*ssa.Alloc {
+	if depth > maxEvalDepth {
+		return nil
+	}
+	switch v := v.(type) {
+	case *ssa.Slice:
+		if alloc, ok := v.X.(*ssa.Alloc); ok {
+			return []*ssa.Alloc{alloc}
+		}
+	case *ssa.Phi:
+		var out []*ssa.Alloc
+		for _, edge := range v.Edges {
+			if edge != v {
+				out = append(out, sliceAllocs(edge, depth+1)...)
+			}
+		}
+		return out
+	case *ssa.Call:
+		if b, ok := v.Common().Value.(*ssa.Builtin); ok && b.Name() == "append" {
+			var out []*ssa.Alloc
+			for _, arg := range v.Common().Args {
+				out = append(out, sliceAllocs(arg, depth+1)...)
+			}
+			return out
+		}
+	}
+	return nil
 }
 
 // allocElems evaluates the constant-index stores into an array allocation.

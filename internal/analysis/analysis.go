@@ -71,7 +71,9 @@ type Result struct {
 	MigrationDirs []string
 	// Templates are the parsed template files.
 	Templates []*Template
-	Stats     Stats
+	// Navigation lists the ways to get from one route to another.
+	Navigation []Navigation
+	Stats      Stats
 
 	scopes map[*ssa.Function]*methodScope
 }
@@ -145,6 +147,7 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	r.scopes = methodScopes(own)
 	newAuthClassifier(r, own, r.scopes, opts.AuthFuncs).classify(r.Routes)
 	buildPages(r, own)
+	buildNavigation(r, own)
 	if r.Schema, r.MigrationDirs, err = sqlparse.LoadMigrations(r.Dir, opts.MigrationDirs); err != nil {
 		return nil, err
 	}
