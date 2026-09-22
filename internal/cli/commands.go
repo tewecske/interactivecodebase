@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 // errUsage reports invalid arguments; the flag set has already printed usage.
@@ -32,14 +33,27 @@ func hasFlags(fs *flag.FlagSet) bool {
 
 // parse parses args and checks the positional argument count.
 func parse(fs *flag.FlagSet, args []string, positional int) error {
+	return parseRange(fs, args, positional, positional)
+}
+
+// parseRange parses args and checks that there are between minArgs and
+// maxArgs positional arguments; maxArgs < 0 means no upper bound.
+func parseRange(fs *flag.FlagSet, args []string, minArgs, maxArgs int) error {
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return err
 		}
 		return errUsage
 	}
-	if fs.NArg() != positional {
-		fmt.Fprintf(fs.Output(), "expected %d argument(s), got %d\n\n", positional, fs.NArg())
+	if n := fs.NArg(); n < minArgs || (maxArgs >= 0 && n > maxArgs) {
+		want := strconv.Itoa(minArgs)
+		switch {
+		case maxArgs < 0:
+			want = "at least " + want
+		case maxArgs != minArgs:
+			want += "-" + strconv.Itoa(maxArgs)
+		}
+		fmt.Fprintf(fs.Output(), "expected %s argument(s), got %d\n\n", want, n)
 		fs.Usage()
 		return errUsage
 	}
@@ -56,18 +70,6 @@ func checkDir(dir string) error {
 		return fmt.Errorf("%s is not a directory", dir)
 	}
 	return nil
-}
-
-func runAnalyze(_ context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "analyze", "icb analyze [flags] <dir>")
-	fs.Bool("json", false, "print the summary as JSON")
-	if err := parse(fs, args, 1); err != nil {
-		return err
-	}
-	if err := checkDir(fs.Arg(0)); err != nil {
-		return err
-	}
-	return fmt.Errorf("%w (see #4)", errNotImplemented)
 }
 
 func runServe(_ context.Context, e *env, args []string) error {
@@ -92,18 +94,6 @@ func runMCP(_ context.Context, e *env, args []string) error {
 		return err
 	}
 	return fmt.Errorf("%w (see #21)", errNotImplemented)
-}
-
-func runQuery(_ context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "query", "icb query [flags] <dir> <query>")
-	fs.Bool("json", false, "print results as JSON")
-	if err := parse(fs, args, 2); err != nil {
-		return err
-	}
-	if err := checkDir(fs.Arg(0)); err != nil {
-		return err
-	}
-	return fmt.Errorf("%w (see #6)", errNotImplemented)
 }
 
 func runVersion(_ context.Context, e *env, args []string) error {

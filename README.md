@@ -6,7 +6,8 @@
 
 See [docs/PLAN.md](docs/PLAN.md) for the design and the [roadmap issue](https://github.com/tewecske/interactivecodebase/issues/30) for progress.
 
-> Status: early development. The CLI skeleton exists; analysis, web UI and MCP are not implemented yet.
+> Status: early development. `analyze` and `query` build the call graph (functions, calls, interface dispatch,
+> implementations); routes, sinks, SQL, the web UI and MCP are not implemented yet.
 
 ## Quickstart
 
@@ -17,10 +18,21 @@ make build            # builds bin/icb
 bin/icb --help
 bin/icb version
 bin/icb analyze ../goweb       # analyze a module and print a summary
-bin/icb serve ../goweb         # web UI + JSON API + MCP on 127.0.0.1:8080
-bin/icb mcp ../goweb           # MCP over stdio, for AI agents
-bin/icb query ../goweb routes  # query the graph from the terminal
+bin/icb serve ../goweb         # web UI + JSON API + MCP on 127.0.0.1:8080 (not yet)
+bin/icb mcp ../goweb           # MCP over stdio, for AI agents (not yet)
 ```
+
+Querying the graph from the terminal:
+
+```sh
+bin/icb query ../goweb callees 'groupHandler).create'
+bin/icb query ../goweb callers 'Authenticator).Authenticate'
+bin/icb query ../goweb paths 'groupHandler).create' 'GroupMembershipRepository).CreateGroupWithAdmin'
+bin/icb query ../goweb search GroupRepository
+bin/icb query -json ../goweb export > graph.json
+```
+
+A node argument is a node ID, an ID without its kind prefix, or text that matches exactly one node.
 
 Or install it:
 

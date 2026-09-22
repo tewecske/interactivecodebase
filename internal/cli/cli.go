@@ -58,7 +58,7 @@ var commands = []command{
 	{
 		name:    "query",
 		summary: "Analyze a Go module and run a query against the graph",
-		usage:   "icb query [flags] <dir> <query>",
+		usage:   "icb query [flags] <dir> <command> [args]",
 		run:     runQuery,
 	},
 	{
