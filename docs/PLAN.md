@@ -58,7 +58,7 @@ Single Go binary `icb`, subcommands `analyze`, `serve`, `mcp`, `query`.
 | Call graph | `x/tools/go/ssa` + `callgraph/vta` (fallback CHA) | Resolves interface calls (`service.GroupRepository` → `postgres.GroupRepository`) with far less noise than CHA |
 | Dynamic route strings | SSA constant propagation + bounded loop unrolling over constant slices/funcs (e.g. `locale.Codes()`) | goweb registers routes as `"GET "+prefix+"/groups"` inside a language loop |
 | LSP | `gopls` (spawned per workspace) for live hover/definition/references in the code viewer | User asked for LSP; static index stays the source of truth for the graph |
-| SQL parsing | `pganalyze/pg_query_go` (Postgres grammar); pluggable dialect | Accurate table/column extraction; migrations define schema + FKs |
+| SQL parsing | libpg_query via `wasilibs/go-pgquery` (WebAssembly, no cgo) with `pg_query_go/v6` AST types | Real Postgres 17 grammar while keeping a pure-Go binary; `pg_query_go` itself needs cgo |
 | Storage | **In-memory** SQLite (`modernc.org/sqlite`, pure Go), used directly (no storage interface): `nodes`, `edges`, `symbols`, `sql_tables`, `sql_columns`, `fk`, FTS index. Analysis runs at startup / on re-analysis | Simple; graph is small (~tens of thousands of nodes). Revisit Postgres (+ Apache AGE for Cypher) only if central multi-repo hosting is needed |
 | Web UI | TypeScript + Vite + React, **Mermaid** for all diagrams, **Shiki** for code | Keep it simple; Mermaid covers sequence/class/ER/flowchart, supports click callbacks, and the same text is useful to AI agents via MCP |
 | MCP | `github.com/modelcontextprotocol/go-sdk` | Official Go SDK; stdio + streamable HTTP |
