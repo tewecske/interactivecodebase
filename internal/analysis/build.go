@@ -60,7 +60,7 @@ func funcPkg(fn *ssa.Function) *types.Package {
 
 type builder struct {
 	r           *Result
-	funcs       map[*ssa.Function]bool
+	own         []*ssa.Function
 	exclude     []string
 	fset        *token.FileSet
 	w           *graph.Writer
@@ -68,33 +68,41 @@ type builder struct {
 	moduleFuncs int
 }
 
-func newBuilder(r *Result, funcs map[*ssa.Function]bool, exclude []string) *builder {
-	return &builder{r: r, funcs: funcs, exclude: exclude, fset: r.Program.Fset, added: map[string]bool{}}
+func newBuilder(r *Result, own []*ssa.Function, exclude []string) *builder {
+	return &builder{r: r, own: own, exclude: exclude, fset: r.Program.Fset, added: map[string]bool{}}
 }
 
-func (b *builder) inModule(pkg *types.Package) bool {
+// moduleFunctions returns the module's source functions, sorted by name so
+// the graph is deterministic. Instantiations of generic functions stay in:
+// their bodies hold the calls, and addFunc maps them onto the generic
+// function's node.
+func moduleFunctions(r *Result, funcs map[*ssa.Function]bool) []*ssa.Function {
+	var own []*ssa.Function
+	for fn := range funcs {
+		if fn.Synthetic == "" && inModule(r.Module, funcPkg(fn)) {
+			own = append(own, fn)
+		}
+	}
+	slices.SortFunc(own, func(x, y *ssa.Function) int { return cmp.Compare(x.String(), y.String()) })
+	return own
+}
+
+func inModule(module string, pkg *types.Package) bool {
 	if pkg == nil {
 		return false
 	}
 	p := pkg.Path()
-	return p == b.r.Module || strings.HasPrefix(p, b.r.Module+"/")
+	return p == module || strings.HasPrefix(p, module+"/")
 }
+
+func (b *builder) inModule(pkg *types.Package) bool { return inModule(b.r.Module, pkg) }
 
 // write adds every module function, the calls they make (to module
 // functions and to non-excluded external functions, which become leaves),
 // interface dispatch, and implements relations between module types.
 func (b *builder) write(w *graph.Writer) error {
 	b.w = w
-	var own []*ssa.Function
-	for fn := range b.funcs {
-		// Instantiations of generic functions stay in: their bodies hold the
-		// calls, and addFunc maps them onto the generic function's node.
-		if fn.Synthetic == "" && b.inModule(funcPkg(fn)) {
-			own = append(own, fn)
-		}
-	}
-	// Map iteration order is random; sort so the graph is deterministic.
-	slices.SortFunc(own, func(x, y *ssa.Function) int { return cmp.Compare(x.String(), y.String()) })
+	own := b.own
 	for _, fn := range own {
 		if err := b.addFunc(fn); err != nil {
 			return err
@@ -108,7 +116,63 @@ func (b *builder) write(w *graph.Writer) error {
 			}
 		}
 	}
-	return b.addImplements()
+	if err := b.addImplements(); err != nil {
+		return err
+	}
+	return b.addRoutes()
+}
+
+// addRoutes adds a route node per registered route, linked to its handler.
+func (b *builder) addRoutes() error {
+	for _, rt := range b.r.Routes {
+		attrs := map[string]string{"method": rt.Method, "pattern": rt.Pattern, "handler": rt.HandlerName()}
+		if len(rt.Variants) > 0 {
+			attrs["variants"] = strings.Join(rt.Variants, " ")
+		}
+		if len(rt.Middleware) > 0 {
+			attrs["middleware"] = funcNames(rt.Middleware)
+		}
+		if len(rt.MuxMiddleware) > 0 {
+			attrs["muxMiddleware"] = funcNames(rt.MuxMiddleware)
+		}
+		if rt.Static {
+			attrs["static"] = "true"
+		}
+		if rt.Conditional() {
+			attrs["conditional"] = "true"
+		}
+		id := graph.NodeID(graph.KindRoute, rt.Key())
+		err := b.w.AddNode(graph.Node{
+			ID:     id,
+			Kind:   graph.KindRoute,
+			Name:   rt.Key(),
+			Detail: strings.Join(rt.Variants, " "),
+			Pos:    b.pos(rt.Pos, token.NoPos),
+			Attrs:  attrs,
+		})
+		if err != nil {
+			return err
+		}
+		if rt.Handler == nil {
+			continue
+		}
+		if err := b.addFunc(rt.Handler); err != nil {
+			return err
+		}
+		if err := b.w.AddEdge(graph.Edge{From: id, To: FuncID(rt.Handler), Kind: graph.EdgeHandledBy}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// funcNames joins go/ssa names with commas.
+func funcNames(fns []*ssa.Function) string {
+	names := make([]string, len(fns))
+	for i, fn := range fns {
+		names[i] = origin(fn).String()
+	}
+	return strings.Join(names, ",")
 }
 
 func (b *builder) addCalls(n *callgraph.Node) error {

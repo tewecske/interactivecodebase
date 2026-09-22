@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/tewecske/interactivecodebase/internal/graph"
@@ -11,6 +13,7 @@ import (
 
 const queryHelp = `Commands:
   export               the whole graph as JSON
+  routes               HTTP routes with their handlers, in registration order
   search <text>        nodes whose name, package, file, detail or ID contain text
   callees <node>       what a node calls (and interface dispatch targets)
   callers <node>       what calls a node
@@ -34,7 +37,7 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 		return err
 	}
 	cmd, cmdArgs := fs.Arg(1), fs.Args()[2:]
-	want := map[string]int{"export": 0, "search": -1, "callees": 1, "callers": 1, "paths": 2}
+	want := map[string]int{"export": 0, "routes": 0, "search": -1, "callees": 1, "callers": 1, "paths": 2}
 	n, ok := want[cmd]
 	if !ok {
 		fmt.Fprintf(fs.Output(), "unknown query command %q\n\n", cmd)
@@ -58,6 +61,15 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 	switch cmd {
 	case "export":
 		return g.Export(ctx, e.stdout)
+	case "routes":
+		nodes, err := g.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
+		if err != nil {
+			return err
+		}
+		slices.SortStableFunc(nodes, func(a, b graph.Node) int {
+			return cmp.Or(cmp.Compare(a.Pos.File, b.Pos.File), cmp.Compare(a.Pos.StartLine, b.Pos.StartLine))
+		})
+		return q.routes(nodes)
 	case "search":
 		nodes, err := g.Search(ctx, strings.Join(cmdArgs, " "), graph.SearchOptions{})
 		if err != nil {
@@ -147,6 +159,20 @@ func (q *querier) nodes(nodes []graph.Node) error {
 	}
 	for _, n := range nodes {
 		fmt.Fprintf(q.e.stdout, "%s\t%s\n", n.ID, formatPos(n.Pos))
+	}
+	return nil
+}
+
+func (q *querier) routes(nodes []graph.Node) error {
+	if q.json {
+		return writeJSON(q.e, nonNil(nodes))
+	}
+	for _, n := range nodes {
+		handler := n.Attrs["handler"]
+		if mw := n.Attrs["middleware"]; mw != "" {
+			handler = mw + " > " + handler
+		}
+		fmt.Fprintf(q.e.stdout, "%s\t%s\t%s\n", n.Name, handler, formatPos(n.Pos))
 	}
 	return nil
 }

@@ -50,7 +50,9 @@ type Result struct {
 	Program   *ssa.Program
 	Packages  []*packages.Package
 	CallGraph *callgraph.Graph
-	Stats     Stats
+	// Routes are the HTTP routes registered in the module, in source order.
+	Routes []Route
+	Stats  Stats
 }
 
 // Stats describes an analysis run.
@@ -114,7 +116,9 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	if r.Graph, err = graph.Open(ctx); err != nil {
 		return nil, err
 	}
-	b := newBuilder(r, funcs, opts.Exclude)
+	own := moduleFunctions(r, funcs)
+	r.Routes = discoverRoutes(r, own)
+	b := newBuilder(r, own, opts.Exclude)
 	if err := r.Graph.Write(ctx, b.write); err != nil {
 		return nil, errors.Join(err, r.Graph.Close())
 	}

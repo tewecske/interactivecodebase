@@ -7,7 +7,7 @@
 See [docs/PLAN.md](docs/PLAN.md) for the design and the [roadmap issue](https://github.com/tewecske/interactivecodebase/issues/30) for progress.
 
 > Status: early development. `analyze` and `query` build the call graph (functions, calls, interface dispatch,
-> implementations); routes, sinks, SQL, the web UI and MCP are not implemented yet.
+> implementations) and discover net/http routes; sinks, SQL, auth, the web UI and MCP are not implemented yet.
 
 ## Quickstart
 
@@ -25,6 +25,7 @@ bin/icb mcp ../goweb           # MCP over stdio, for AI agents (not yet)
 Querying the graph from the terminal:
 
 ```sh
+bin/icb query ../goweb routes
 bin/icb query ../goweb callees 'groupHandler).create'
 bin/icb query ../goweb callers 'Authenticator).Authenticate'
 bin/icb query ../goweb paths 'groupHandler).create' 'GroupMembershipRepository).CreateGroupWithAdmin'

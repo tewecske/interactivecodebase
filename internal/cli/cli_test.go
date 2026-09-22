@@ -88,7 +88,7 @@ func TestSubcommandArgumentValidation(t *testing.T) {
 		{"serve stub", []string{"serve", "-addr", ":0", "-watch", dir}, ExitError, "not implemented yet"},
 		{"mcp stub", []string{"mcp", dir}, ExitError, "not implemented yet"},
 		{"query missing command", []string{"query", dir}, ExitUsage, "expected at least 2 argument(s), got 1"},
-		{"query unknown command", []string{"query", dir, "routes"}, ExitUsage, `unknown query command "routes"`},
+		{"query unknown command", []string{"query", dir, "bogus"}, ExitUsage, `unknown query command "bogus"`},
 		{"query wrong arity", []string{"query", dir, "paths", "a"}, ExitUsage, "wrong number of arguments for paths"},
 		{"analyze not a module", []string{"analyze", dir}, ExitError, "icb analyze:"},
 		{"version extra arg", []string{"version", "x"}, ExitUsage, "expected 0 argument(s), got 1"},
@@ -201,6 +201,8 @@ func TestQueryWebapp(t *testing.T) {
 		{"paths through interface dispatch", []string{"paths", "noteHandler).create", "sql.Tx).ExecContext"}, ExitOK,
 			"-dispatches_to-> method:(*example.com/webapp/internal/store/postgres.NoteRepository).Create"},
 		{"search", []string{"search", "SMTPMailer"}, ExitOK, "type:example.com/webapp/internal/mail.SMTPMailer"},
+		{"routes", []string{"routes"}, ExitOK,
+			"POST /{lang}/admin/reindex\texample.com/webapp/internal/web.requireAdmin > (*example.com/webapp/internal/web.adminHandler).reindex\tinternal/web/router.go:"},
 		{"ambiguous node", []string{"callees", "Create"}, ExitError, "matches several nodes; use an ID"},
 		{"unknown node", []string{"callees", "nosuchthing"}, ExitError, `no node matches "nosuchthing"`},
 	}
