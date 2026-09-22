@@ -67,13 +67,14 @@ Single Go binary `icb`, subcommands `analyze`, `serve`, `mcp`, `query`.
 ## 3. Graph model
 
 Node kinds: `route`, `page`, `htmx_call`, `static_asset`, `template`, `handler`, `func`, `method`, `interface_call`,
-`sink.sql`, `sink.file`, `sink.http`, `sink.smtp`, `sink.exec`, `type`, `sql_table`, `sql_column`.
+`sink.sql`, `sink.file`, `sink.http`, `sink.smtp`, `sink.exec`, `sink.env`, `type`, `sql_table`, `sql_column`.
 
 Edge kinds: `navigates_to` (link/form/redirect), `requests` (page → HTMX/API call), `loads` (page → static),
 `handled_by`, `calls`, `implements`, `dispatches_to` (interface → concrete), `renders` (handler → template),
-`uses_type`, `queries` (sink.sql → table, with op), `fk` (table → table), `guarded_by` (route → auth guard).
+`uses_type`, `queries` (sink.sql → table, with op), `has_column` (table → column), `fk` (table → table), `guarded_by` (route → auth guard).
 
-Every node carries `pos` (file:line:col range) so the UI/MCP can always show code.
+Every node carries `pos` (file:line:col range) so the UI/MCP can always show code. SQL tables and columns are
+ordinary nodes, so one `nodes`/`edges` schema (plus an FTS5 trigram index) covers everything; see `internal/graph`.
 
 ## 4. Analysis details & known hard parts
 
