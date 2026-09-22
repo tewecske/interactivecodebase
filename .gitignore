@@ -1,4 +1,6 @@
 /bin/
 coverage.out
 node_modules/
-/ui/dist/
+# Built web UI (make ui); the binary embeds it when present.
+/internal/webui/dist/*
+!/internal/webui/dist/.gitkeep

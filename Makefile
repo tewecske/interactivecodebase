@@ -31,8 +31,9 @@ test-goweb:
 lint:
 	$(GOLANGCI_LINT) run ./...
 
-# The web UI lands in ui/ with #14; until then this is a no-op.
+# Builds the web UI (Node 22+) into internal/webui/dist, which the binary
+# embeds. Without it the binary still works and serves a notice at "/".
 ui:
-	@if [ -f ui/package.json ]; then cd ui && npm ci && npm run build; else echo "ui: no ui/package.json, skipping"; fi
+	cd ui && npm ci && npm test && npm run build
 
 check: fmt-check vet lint test
