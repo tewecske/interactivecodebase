@@ -71,7 +71,7 @@ type builder struct {
 }
 
 func newBuilder(r *Result, own []*ssa.Function, exclude []string) *builder {
-	return &builder{r: r, own: own, scopes: methodScopes(own), exclude: exclude, fset: r.Program.Fset, added: map[string]bool{}}
+	return &builder{r: r, own: own, scopes: r.scopes, exclude: exclude, fset: r.Program.Fset, added: map[string]bool{}}
 }
 
 // moduleFunctions returns the module's source functions, sorted by name so
@@ -318,6 +318,13 @@ func (b *builder) addRoutes() error {
 		if rt.Conditional() {
 			attrs["conditional"] = "true"
 		}
+		attrs["access"] = rt.Access
+		if rt.OptionalAuth {
+			attrs["optionalAuth"] = "true"
+		}
+		if ev := accessEvidence(rt); ev != "" {
+			attrs["accessEvidence"] = ev
+		}
 		id := graph.NodeID(graph.KindRoute, rt.Key())
 		err := b.w.AddNode(graph.Node{
 			ID:     id,
@@ -338,6 +345,19 @@ func (b *builder) addRoutes() error {
 		}
 		if err := b.w.AddEdge(graph.Edge{From: id, To: FuncID(rt.Handler), Kind: graph.EdgeHandledBy}); err != nil {
 			return err
+		}
+		for _, g := range rt.Guards {
+			if err := b.addFunc(g.Guard); err != nil {
+				return err
+			}
+			gattrs := map[string]string{"role": g.Role}
+			if g.Role == "" {
+				gattrs = map[string]string{"optional": "true"}
+			}
+			edge := graph.Edge{From: id, To: FuncID(g.Guard), Kind: graph.EdgeGuardedBy, Pos: b.pos(g.Pos, token.NoPos), Attrs: gattrs}
+			if err := b.w.AddEdge(edge); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

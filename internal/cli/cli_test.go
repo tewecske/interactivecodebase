@@ -207,7 +207,7 @@ func TestQueryWebapp(t *testing.T) {
 		{name: "flow method", flags: []string{"-method", "GET"}, args: []string{"flow", "POST /{lang}/sign-in"}, code: ExitOK, out: "table sessions (select"},
 		{name: "flow bad prune", flags: []string{"-prune", "bogus"}, args: []string{"flow", "POST /{lang}/notes"}, code: ExitUsage, out: `invalid -prune "bogus"`},
 		{"routes", []string{"routes"}, ExitOK,
-			"POST /{lang}/admin/reindex\texample.com/webapp/internal/web.requireAdmin > (*example.com/webapp/internal/web.adminHandler).reindex\tinternal/web/router.go:", nil},
+			"POST /{lang}/admin/reindex\tadmin\texample.com/webapp/internal/web.requireAdmin > (*example.com/webapp/internal/web.adminHandler).reindex\tinternal/web/router.go:", nil},
 		{"ambiguous node", []string{"callees", "Create"}, ExitError, "matches several nodes; use an ID", nil},
 		{"unknown node", []string{"callees", "nosuchthing"}, ExitError, `no node matches "nosuchthing"`, nil},
 	}
