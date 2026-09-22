@@ -22,6 +22,10 @@ func TestGowebCallGraph(t *testing.T) {
 	t.Logf("stats %+v", r.Stats)
 	ctx := t.Context()
 
+	t.Run("routes", func(t *testing.T) {
+		compareRoutes(t, exp.Routes, r.Routes)
+	})
+
 	t.Run("handlers have nodes", func(t *testing.T) {
 		for _, route := range exp.Routes {
 			if !strings.Contains(route.Handler, exp.Module) {
