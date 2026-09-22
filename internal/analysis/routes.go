@@ -37,6 +37,8 @@ type Route struct {
 	OptionalAuth bool
 	// Guards is the evidence for Access and OptionalAuth.
 	Guards []GuardUse
+	// Page is what the route renders, nil if it renders no template.
+	Page *Page
 }
 
 // Key identifies the route as "METHOD pattern".

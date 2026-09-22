@@ -20,6 +20,8 @@ const queryHelp = `Commands:
   callees <node>       what a node calls (and interface dispatch targets)
   callers <node>       what calls a node
   paths <from> <to>    shortest call paths between two nodes
+  page <route>         templates a route renders, the requests they make
+                       and the static assets they load
   flow <route>         the route's call tree down to sinks and tables,
                        e.g. flow 'POST /{lang}/groups'
 
@@ -50,7 +52,7 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 		fs.Usage()
 		return errUsage
 	}
-	want := map[string]int{"export": 0, "routes": 0, "flow": 1, "search": -1, "callees": 1, "callers": 1, "paths": 2}
+	want := map[string]int{"export": 0, "routes": 0, "flow": 1, "page": 1, "search": -1, "callees": 1, "callers": 1, "paths": 2}
 	n, ok := want[cmd]
 	if !ok {
 		fmt.Fprintf(fs.Output(), "unknown query command %q\n\n", cmd)
@@ -103,6 +105,12 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 			return err
 		}
 		return q.neighbors(nbs)
+	case "page":
+		route, err := q.resolve(ctx, cmdArgs[0])
+		if err != nil {
+			return err
+		}
+		return q.page(ctx, route)
 	case "flow":
 		route, err := q.resolve(ctx, cmdArgs[0])
 		if err != nil {
@@ -215,6 +223,42 @@ func (q *querier) routes(nodes []graph.Node) error {
 			access += "*"
 		}
 		fmt.Fprintf(q.e.stdout, "%s\t%s\t%s\t%s\n", n.Name, access, handler, formatPos(n.Pos))
+	}
+	return nil
+}
+
+func (q *querier) page(ctx context.Context, route graph.Node) error {
+	sections := []struct {
+		title string
+		kind  graph.EdgeKind
+	}{{"renders", graph.EdgeRenders}, {"requests", graph.EdgeRequests}, {"loads", graph.EdgeLoads}}
+	all := map[string][]graph.Neighbor{}
+	for _, s := range sections {
+		nbs, err := q.g.Neighbors(ctx, route.ID, graph.Out, s.kind)
+		if err != nil {
+			return err
+		}
+		all[s.title] = nonNil(nbs)
+	}
+	if q.json {
+		return writeJSON(q.e, all)
+	}
+	for _, s := range sections {
+		fmt.Fprintf(q.e.stdout, "%s:\n", s.title)
+		for _, nb := range all[s.title] {
+			switch s.kind {
+			case graph.EdgeRequests:
+				target := nb.Node.Attrs["target"]
+				if target == "" {
+					target = nb.Node.Attrs["method"] + " " + nb.Node.Attrs["url"] + " (unresolved)"
+				}
+				fmt.Fprintf(q.e.stdout, "  %s\t%s\t%s\n", target, nb.Node.Attrs["trigger"], formatPos(nb.Node.Pos))
+			case graph.EdgeLoads:
+				fmt.Fprintf(q.e.stdout, "  %s\t%s\n", nb.Node.Name, nb.Node.Attrs["file"])
+			default:
+				fmt.Fprintf(q.e.stdout, "  %s\t%s\n", nb.Edge.Attrs["template"], nb.Node.Pos.File)
+			}
+		}
 	}
 	return nil
 }

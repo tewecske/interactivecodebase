@@ -80,6 +80,21 @@ func (e *evaluator) str(v ssa.Value, depth int) []string {
 		}
 	case *ssa.Parameter:
 		return e.param(v, depth+1)
+	case *ssa.Extract:
+		// Result i of a module function returning a tuple.
+		if call, ok := v.Tuple.(*ssa.Call); ok {
+			if fn := call.Common().StaticCallee(); fn != nil && e.own(fn) {
+				var out []string
+				for _, b := range fn.Blocks {
+					if ret, ok := b.Instrs[len(b.Instrs)-1].(*ssa.Return); ok && v.Index < len(ret.Results) {
+						out = union(out, e.str(ret.Results[v.Index], depth+1))
+					}
+				}
+				if len(out) > 0 {
+					return limit(dropEmpty(out))
+				}
+			}
+		}
 	case *ssa.Call:
 		fn := v.Common().StaticCallee()
 		if fn == nil {
@@ -94,7 +109,7 @@ func (e *evaluator) str(v ssa.Value, depth int) []string {
 				out = union(out, e.str(r, depth+1))
 			}
 			if len(out) > 0 {
-				return limit(out)
+				return limit(dropEmpty(out))
 			}
 		}
 	}
@@ -315,6 +330,15 @@ func globalStores(g *ssa.Global) []ssa.Value {
 		}
 	}
 	return out
+}
+
+// dropEmpty removes "" when other values exist: an empty string returned
+// from a function is usually the zero value of an error path.
+func dropEmpty(xs []string) []string {
+	if len(xs) < 2 || !slices.Contains(xs, "") {
+		return xs
+	}
+	return slices.DeleteFunc(slices.Clone(xs), func(x string) bool { return x == "" })
 }
 
 func concat(xs, ys []string) []string {

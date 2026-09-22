@@ -2,8 +2,10 @@ package analysis
 
 import (
 	"cmp"
+	"fmt"
 	"go/token"
 	"go/types"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -130,7 +132,133 @@ func (b *builder) write(w *graph.Writer) error {
 	if err := b.addQueries(); err != nil {
 		return err
 	}
-	return b.addRoutes()
+	if err := b.addTemplates(); err != nil {
+		return err
+	}
+	if err := b.addRoutes(); err != nil {
+		return err
+	}
+	return b.addPages()
+}
+
+// TemplateID returns the graph node ID of a template file.
+func TemplateID(file string) string { return graph.NodeID(graph.KindTemplate, file) }
+
+func (b *builder) addTemplates() error {
+	for _, t := range b.r.Templates {
+		err := b.w.AddNode(graph.Node{
+			ID: TemplateID(t.File), Kind: graph.KindTemplate, Name: t.Name,
+			Detail: strings.Join(t.Defines, " "), Pos: graph.Pos{File: t.File, StartLine: 1},
+			Attrs: map[string]string{"defines": strings.Join(t.Defines, ",")},
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// addPages links routes to the templates they render, the requests those
+// templates make (htmx_call nodes, handled by the target route) and the
+// static assets they load.
+func (b *builder) addPages() error {
+	byDefine := map[string]*Template{}
+	for _, t := range b.r.Templates {
+		for _, d := range t.Defines {
+			byDefine[d] = t
+		}
+	}
+	for _, rt := range b.r.Routes {
+		if rt.Page == nil {
+			continue
+		}
+		routeID := graph.NodeID(graph.KindRoute, rt.Key())
+		for _, name := range rt.Page.Renders {
+			t := byDefine[name]
+			edge := graph.Edge{From: routeID, To: TemplateID(t.File), Kind: graph.EdgeRenders, Attrs: map[string]string{"template": name}}
+			if err := b.w.AddEdge(edge); err != nil {
+				return err
+			}
+		}
+		for _, ref := range rt.Page.Refs {
+			pos := graph.Pos{File: ref.Template.File, StartLine: ref.Line}
+			switch ref.Kind() {
+			case "request":
+				if err := b.addRequest(routeID, rt, ref, pos); err != nil {
+					return err
+				}
+			case "asset":
+				if err := b.addAsset(routeID, ref, pos); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (b *builder) addRequest(routeID string, rt Route, ref PageRef, pos graph.Pos) error {
+	id := graph.NodeID(graph.KindHTMXCall, fmt.Sprintf("%s|%s:%d:%s", rt.Key(), ref.Template.File, ref.Line, ref.Attr))
+	name := ref.Method + " " + strings.Join(ref.Values, " | ")
+	if ref.Target != "" {
+		name = ref.Target
+	}
+	attrs := map[string]string{
+		"method": ref.Method, "url": ref.Raw, "values": strings.Join(ref.Values, "\n"),
+		"trigger": ref.Trigger(), "element": ref.Element, "template": ref.Define,
+	}
+	if ref.Target != "" {
+		attrs["target"] = ref.Target
+	}
+	if err := b.w.AddNode(graph.Node{ID: id, Kind: graph.KindHTMXCall, Name: name, Pos: pos, Attrs: attrs}); err != nil {
+		return err
+	}
+	if err := b.w.AddEdge(graph.Edge{From: routeID, To: id, Kind: graph.EdgeRequests, Pos: pos}); err != nil {
+		return err
+	}
+	if ref.Target == "" {
+		return nil
+	}
+	return b.w.AddEdge(graph.Edge{From: id, To: graph.NodeID(graph.KindRoute, ref.Target), Kind: graph.EdgeHandledBy})
+}
+
+func (b *builder) addAsset(routeID string, ref PageRef, pos graph.Pos) error {
+	url := ref.Raw
+	if len(ref.Values) == 1 {
+		url = ref.Values[0]
+	}
+	id := graph.NodeID(graph.KindStaticAsset, url)
+	if !b.added[id] {
+		b.added[id] = true
+		attrs := map[string]string{"element": ref.Element}
+		if file := b.assetFile(url); file != "" {
+			attrs["file"] = file
+		}
+		if err := b.w.AddNode(graph.Node{ID: id, Kind: graph.KindStaticAsset, Name: url, Attrs: attrs}); err != nil {
+			return err
+		}
+	}
+	return b.w.AddEdge(graph.Edge{From: routeID, To: id, Kind: graph.EdgeLoads, Pos: pos})
+}
+
+// assetFile finds the module file an asset URL serves, e.g.
+// "/static/app.css" -> "static/app.css".
+func (b *builder) assetFile(url string) string {
+	rel := strings.TrimPrefix(urlPath(url), "/")
+	if rel == "" || strings.Contains(rel, Unknown) {
+		return ""
+	}
+	for dir := rel; dir != "."; {
+		if _, err := os.Stat(filepath.Join(b.r.Dir, dir)); err == nil {
+			return filepath.ToSlash(dir)
+		}
+		i := strings.Index(dir, "/")
+		if i < 0 {
+			break
+		}
+		dir = dir[i+1:]
+	}
+	return ""
 }
 
 // addQueries links SQL sinks to the tables they touch. Tables that the
