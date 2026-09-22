@@ -74,7 +74,8 @@ func (s *Server) uiHandler() http.Handler {
 }
 
 const placeholder = `<!doctype html><meta charset="utf-8"><title>icb</title>
-<h1>icb</h1><p>The web UI is not built into this binary. The JSON API is under <a href="/api/summary">/api/</a>.</p>`
+<h1>icb</h1><p>This binary was built without the web UI. Build it with <code>make build</code>
+(which runs <code>make ui</code>, needing Node 22+). The JSON API is under <a href="/api/summary">/api/</a>.</p>`
 
 var (
 	errNotFound   = errors.New("not found")

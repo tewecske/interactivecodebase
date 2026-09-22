@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tewecske/interactivecodebase/internal/server"
+	"github.com/tewecske/interactivecodebase/internal/webui"
 )
 
 // shutdownTimeout bounds graceful shutdown.
@@ -57,5 +58,5 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 	return nil
 }
 
-// uiHandler serves the embedded web UI; nil until the UI is built in (#14).
-func uiHandler() http.Handler { return nil }
+// uiHandler serves the embedded web UI, or nil if it was not built in.
+func uiHandler() http.Handler { return webui.Handler() }

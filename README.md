@@ -41,11 +41,13 @@ bin/icb query -json ../goweb export > graph.json
 
 A node argument is a node ID, an ID without its kind prefix, or text that matches exactly one node.
 
-Or install it:
+Or install it without the web UI (the API, CLI and MCP work; `/` explains how to add the UI):
 
 ```sh
 go install github.com/tewecske/interactivecodebase/cmd/icb@latest
 ```
+
+The web UI is built with Node 22+ by `make ui` (part of `make build`) and embedded into the binary.
 
 ## JSON API
 
@@ -73,7 +75,8 @@ until then keep the default `127.0.0.1` address.
 make check   # gofmt check, go vet, golangci-lint, tests (with -race)
 make test
 make lint    # runs a pinned golangci-lint via `go run`, no install needed
-make ui      # builds the web UI once ui/ exists
+make ui      # builds and tests the web UI (ui/, Vite + React + Mermaid) into internal/webui/dist
+cd ui && npm run dev   # UI dev server on :5173, proxying /api to a running icb serve
 make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_GOWEB_DIR) at the pinned commit
 ```
 
