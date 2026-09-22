@@ -15,6 +15,11 @@ linters:
         - fmt.Fprintf
         - fmt.Fprintln
         - io.WriteString
+        # Row iteration errors surface through Rows.Err; the others only run
+        # on error paths that already return an error.
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Conn).Close
 
 formatters:
   enable:
