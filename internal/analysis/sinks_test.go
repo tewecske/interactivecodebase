@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"fmt"
 	"go/ast"
 	"go/importer"
 	"go/parser"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/tewecske/interactivecodebase/internal/fixture"
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/sqlparse"
 )
 
 func TestExpectedSinks(t *testing.T) {
@@ -24,16 +26,52 @@ func TestExpectedSinks(t *testing.T) {
 	checkExpectedSinks(t, r, exp.Sinks)
 }
 
-// checkExpectedSinks verifies each expected sink is called by its function.
+// checkExpectedSinks verifies each expected sink is called by its function
+// and, for SQL, that some sink there has the expected operation and tables.
 func checkExpectedSinks(t *testing.T, r *Result, want []fixture.Sink) {
 	t.Helper()
 	for _, s := range want {
-		i := slices.IndexFunc(r.Sinks, func(got Sink) bool {
-			return string(got.Kind) == s.Kind && origin(got.Caller).String() == s.In
-		})
-		if i < 0 {
-			t.Errorf("no %s sink in %s", s.Kind, s.In)
+		matches := func(got Sink) bool {
+			if string(got.Kind) != s.Kind || origin(got.Caller).String() != s.In {
+				return false
+			}
+			if len(s.Tables) == 0 {
+				return true
+			}
+			if got.Query == nil || (s.Op != "" && !slices.Contains(got.Query.Ops, s.Op)) {
+				return false
+			}
+			for _, table := range s.Tables {
+				if !slices.ContainsFunc(got.Query.Tables, func(u sqlparse.TableUse) bool { return u.Name == table }) {
+					return false
+				}
+			}
+			return true
 		}
+		if !slices.ContainsFunc(r.Sinks, matches) {
+			t.Errorf("no %s sink in %s touching %v with op %q", s.Kind, s.In, s.Tables, s.Op)
+		}
+	}
+}
+
+func TestQueriesEdges(t *testing.T) {
+	r := webapp(t)
+	sinks := neighbors(t, r, FuncID(findFunc(t, r, "(*"+pg+".SessionRepository).CreateSession")), graph.EdgeCalls)
+	i := slices.IndexFunc(sinks, func(nb graph.Neighbor) bool { return nb.Node.Kind == graph.KindSinkSQL })
+	if i < 0 {
+		t.Fatal("CreateSession has no SQL sink")
+	}
+	sink := sinks[i].Node
+	if sink.Attrs["op"] != "insert" {
+		t.Errorf("sink op = %q", sink.Attrs["op"])
+	}
+	got := map[string]string{}
+	for _, nb := range neighbors(t, r, sink.ID, graph.EdgeQueries) {
+		got[nb.Node.Name] = nb.Edge.Attrs["op"] + " " + nb.Edge.Attrs["columns"]
+	}
+	want := map[string]string{"sessions": "insert id,user_id,expires_at", "users": "select "}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("queries = %v, want %v", got, want)
 	}
 }
 

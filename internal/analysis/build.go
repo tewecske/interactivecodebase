@@ -126,7 +126,40 @@ func (b *builder) write(w *graph.Writer) error {
 	if err := b.addSchema(); err != nil {
 		return err
 	}
+	if err := b.addQueries(); err != nil {
+		return err
+	}
 	return b.addRoutes()
+}
+
+// addQueries links SQL sinks to the tables they touch. Tables that the
+// migrations do not create (e.g. made by code at runtime) get an
+// "inferred" table node.
+func (b *builder) addQueries() error {
+	for _, s := range b.r.Sinks {
+		if s.Query == nil {
+			continue
+		}
+		for _, t := range s.Query.Tables {
+			id := TableID(t.Name)
+			if b.r.Schema.Table(t.Name) == nil && !b.added[id] {
+				b.added[id] = true
+				err := b.w.AddNode(graph.Node{ID: id, Kind: graph.KindSQLTable, Name: t.Name, Attrs: map[string]string{"inferred": "true"}})
+				if err != nil {
+					return err
+				}
+			}
+			attrs := map[string]string{"op": t.Op}
+			if len(t.Columns) > 0 {
+				attrs["columns"] = strings.Join(t.Columns, ",")
+			}
+			edge := graph.Edge{From: s.ID(b.fset, b.relFile), To: id, Kind: graph.EdgeQueries, Attrs: attrs}
+			if err := b.w.AddEdge(edge); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // TableID returns the graph node ID of a database table.
@@ -208,6 +241,15 @@ func (b *builder) addSinks() error {
 			attrs["resolved"] = "true"
 		}
 		detail := strings.Join(s.Values, "\n")
+		if q := s.Query; q != nil {
+			attrs["op"] = strings.Join(q.Ops, ",")
+			if q.Partial {
+				attrs["partial"] = "true"
+			}
+			if q.Err != nil {
+				attrs["parseError"] = q.Err.Error()
+			}
+		}
 		if s.FuncValue {
 			attrs["funcValue"] = "true"
 			detail = s.Callee + " passed as a function value"

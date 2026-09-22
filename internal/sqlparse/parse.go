@@ -7,6 +7,7 @@
 package sqlparse
 
 import (
+	"regexp"
 	"strings"
 	"sync"
 
@@ -20,7 +21,10 @@ const Unknown = "{?}"
 
 const unknownIdent = "icb_unknown"
 
-var warmOnce sync.Once
+var (
+	warmOnce       sync.Once
+	unknownParamRE = regexp.MustCompile(`\$(\{\?\})+`)
+)
 
 // Warm compiles the parser in the background so the first real parse does
 // not pay for it.
@@ -40,6 +44,8 @@ type statement struct {
 // identifier. partial reports whether any were replaced.
 func parse(sql string) (stmts []statement, partial bool, err error) {
 	partial = strings.Contains(sql, Unknown)
+	// "$" + strconv.Itoa(n) leaves "${?}"; it is still a bind parameter.
+	sql = unknownParamRE.ReplaceAllString(sql, "$$1")
 	res, err := pgquery.Parse(strings.ReplaceAll(sql, Unknown, unknownIdent))
 	if err != nil {
 		return nil, partial, err
