@@ -35,6 +35,7 @@ export function NodeView({ id, theme }: { id: string; theme: Theme }) {
               </tbody>
             </table>
           )}
+          {d.node.kind === "sink.sql" && <SQL out={d.out} />}
           <Source node={d.node} theme={theme} />
           {withTypes.includes(d.node.kind) && <Types id={d.node.id} theme={theme} />}
           <Edges title="Outgoing" groups={d.out} />
@@ -42,6 +43,32 @@ export function NodeView({ id, theme }: { id: string; theme: Theme }) {
         </section>
       )}
     </Loaded>
+  );
+}
+
+// SQL summarizes what an SQL sink touches.
+function SQL({ out }: { out: Record<string, Neighbor[]> }) {
+  const tables = out.queries ?? [];
+  if (tables.length === 0) return null;
+  return (
+    <>
+      <h2>Tables</h2>
+      <table className="grid">
+        <tbody>
+          {tables.map((t) => (
+            <tr key={t.edge.id}>
+              <td>
+                <a href={nodeHref(t.node.id)}>{t.node.name}</a>
+              </td>
+              <td>
+                <span className="badge kind">{t.edge.attrs?.op}</span>
+              </td>
+              <td className="mono muted">{t.edge.attrs?.columns?.split(",").join(", ")}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 

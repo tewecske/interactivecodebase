@@ -7,6 +7,7 @@ import { FlowView } from "./views/Flow";
 import { NodeView } from "./views/Node";
 import { RouteView } from "./views/Route";
 import { SiteMap } from "./views/SiteMap";
+import { TableView, TablesView } from "./views/Tables";
 
 export interface ViewProps {
   params: Record<string, string>;
@@ -20,6 +21,8 @@ export const views: Record<string, { title: (p: Record<string, string>) => strin
   code: { title: (p) => `${p.file}:${p.line ?? 1}`, render: ({ params, theme }) => <CodeView params={params} theme={theme} /> },
   sitemap: { title: () => "Site map", render: ({ params, theme }) => <SiteMap params={params} theme={theme} /> },
   route: { title: (p) => p.id ?? "Route", render: ({ params }) => <RouteView routeKey={params.id} /> },
+  tables: { title: () => "Tables", render: ({ theme }) => <TablesView theme={theme} /> },
+  table: { title: (p) => `Table ${p.name}`, render: ({ params, theme }) => <TableView params={params} theme={theme} /> },
   flow: { title: (p) => `Flow: ${p.route}`, render: ({ params, theme }) => <FlowView params={params} theme={theme} /> },
 };
 
