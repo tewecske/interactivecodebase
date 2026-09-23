@@ -19,11 +19,28 @@ const responses: Record<string, unknown> = {
     analysisMs: 2500,
   },
   "api/diagrams/sitemap?get=1": { mermaid: "flowchart LR\n  r0(\"GET /x\")\n", ids: { r0: "route:GET /x" } },
-  "api/routes": [
+  "api/routes?pages=1": [
     { id: "route:GET /{lang}/notes", method: "GET", pattern: "/{lang}/notes", access: "authenticated", handler: "(*example.com/webapp/internal/web.noteHandler).list", page: true, pos: { file: "internal/web/router.go", startLine: 39 } },
     { id: "route:POST /{lang}/notes", method: "POST", pattern: "/{lang}/notes", access: "authenticated", handler: "(*example.com/webapp/internal/web.noteHandler).create", pos: {} },
     { id: "route:GET /{lang}/weather", method: "GET", pattern: "/{lang}/weather", access: "public", optionalAuth: true, handler: "example.com/webapp/internal/web.weatherPage$1", pos: {} },
+    { id: "page:/app/notes/{noteId}", method: "GET", pattern: "/app/notes/{noteId}", access: "public", handler: "zioapp.frontend.pages.NoteDetailPage.render", page: true, pos: {} },
   ],
+  [`api/page?${new URLSearchParams({ route: "page:/app/notes/{noteId}" })}`]: {
+    route: { id: "page:/app/notes/{noteId}", method: "GET", pattern: "/app/notes/{noteId}", access: "public", handler: "zioapp.frontend.pages.NoteDetailPage.render", pos: { file: "modules/frontend/src/main/scala/zioapp/frontend/AppRouter.scala", startLine: 22 } },
+    renders: [],
+    requests: [
+      { edge: { id: 1, from: "", to: "", kind: "requests", pos: {} }, node: { id: "htmx_call:NoteApi.scala:11:60", kind: "htmx_call", name: "GET /api/notes/{id}", pos: { file: "modules/frontend/src/main/scala/zioapp/frontend/api/NoteApi.scala", startLine: 11 }, attrs: { method: "GET", url: "/api/notes/{noteId}", trigger: "fetch", via: "zioapp.frontend.api.NoteApi.get", target: "GET /api/notes/{id}" } } },
+    ],
+    assets: [],
+    navigatesTo: [
+      { edge: { id: 2, from: "", to: "", kind: "navigates_to", pos: { file: "modules/frontend/src/main/scala/zioapp/frontend/pages/NoteDetailPage.scala", startLine: 16 }, attrs: { trigger: "navigate", via: "zioapp.frontend.pages.NoteDetailPage.render" } }, node: { id: "page:/app/notes", kind: "page", name: "/app/notes", pos: {} } },
+    ],
+  },
+  [`api/node?${new URLSearchParams({ id: "page:/app/notes/{noteId}" })}`]: {
+    node: { id: "page:/app/notes/{noteId}", kind: "page", name: "/app/notes/{noteId}", pos: {} },
+    out: {},
+    in: { navigates_to: [{ edge: { id: 3, from: "", to: "", kind: "navigates_to", pos: {}, attrs: { trigger: "link", via: "zioapp.frontend.pages.NotesPage.render" } }, node: { id: "page:/app/notes", kind: "page", name: "/app/notes", pos: {} } }] },
+  },
   "api/diagrams/sitemap?get=1&access=authenticated": { mermaid: "flowchart LR\n  r0(\"GET /x\")\n", ids: { r0: "route:GET /x" } },
   [`api/page?${new URLSearchParams({ route: "GET /{lang}/notes/{id}" })}`]: {
     route: { id: "route:GET /{lang}/notes/{id}", method: "GET", pattern: "/{lang}/notes/{id}", access: "authenticated", handler: "(*example.com/webapp/internal/web.noteHandler).detail", evidence: "authenticated via (*example.com/webapp/internal/web.noteHandler).user", pos: { file: "internal/web/router.go", startLine: 41 } },
@@ -160,12 +177,35 @@ describe("App", () => {
     mockFetch();
     const el = await render("#/sitemap?mode=table");
     const rows = [...el.querySelectorAll("table.routes tbody tr")].map((tr) => tr.textContent);
-    expect(rows).toHaveLength(2); // GET only by default
+    expect(rows).toHaveLength(3); // GET only by default
     expect(rows[0]).toContain("/{lang}/notes");
     expect(rows[0]).toContain("(*web.noteHandler).list");
     expect(rows[1]).toContain("public · session-aware");
+    // A frontend page links to its own view by ID.
+    expect(rows[2]).toContain("/app/notes/{noteId}page");
+    const pageLink = el.querySelectorAll("table.routes tbody tr")[2].querySelector("a");
+    expect(pageLink?.getAttribute("href")).toBe("#/route?" + new URLSearchParams({ id: "page:/app/notes/{noteId}" }));
     const filtered = await render("#/sitemap?mode=table&access=authenticated");
     expect(filtered.querySelectorAll("table.routes tbody tr")).toHaveLength(1);
+  });
+
+  it("drills into a frontend page: the view, its requests and navigation", async () => {
+    mockFetch();
+    const el = await render("#/route?" + new URLSearchParams({ id: "page:/app/notes/{noteId}" }));
+    const text = el.textContent ?? "";
+    expect(el.querySelector("h1")?.textContent).toBe("page /app/notes/{noteId} ");
+    expect(text).toContain("View code");
+    expect(text).not.toContain("Call flow");
+    expect(text).not.toContain("no guard");
+    expect([...el.querySelectorAll("th")].map((th) => th.textContent)).toContain("View");
+    expect(text).toContain("GET /api/notes/{id}");
+    expect(text).toContain("api.NoteApi.get");
+    expect(text).toContain("Navigations");
+    expect(text).toContain("by zioapp.frontend.pages.NoteDetailPage.render");
+    expect(text).toContain("Reached from (1)");
+    const hrefs = [...el.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(hrefs).toContain("#/route?" + new URLSearchParams({ id: "page:/app/notes" }));
+    expect(hrefs).toContain("#/route?" + new URLSearchParams({ id: "GET /api/notes/{id}" }));
   });
 
   it("draws the filtered site map diagram", async () => {

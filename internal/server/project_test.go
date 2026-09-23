@@ -171,3 +171,84 @@ func TestGraphTypesDiagram(t *testing.T) {
 func decode(rec *httptest.ResponseRecorder, v any) error {
 	return json.Unmarshal(rec.Body.Bytes(), v)
 }
+
+// TestFrontendPages covers the page nodes an extractor writes for a
+// single-page app's frontend: listed with the routes on request, drawn in
+// the site map with their navigation, and drilled into by ID.
+func TestFrontendPages(t *testing.T) {
+	g, err := graph.Open(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = g.Close() })
+	page := func(path, view string) graph.Node {
+		return graph.Node{ID: graph.NodeID(graph.KindPage, path), Kind: graph.KindPage, Name: path, Attrs: map[string]string{
+			"method": "GET", "pattern": path, "access": "public", "handler": view,
+		}}
+	}
+	notes := page("/app/notes", "app.NotesPage.render")
+	detail := page("/app/notes/{noteId}", "app.NoteDetailPage.render")
+	route := graph.Node{ID: "route:GET /api/notes/{id}", Kind: graph.KindRoute, Name: "GET /api/notes/{id}", Attrs: map[string]string{
+		"method": "GET", "pattern": "/api/notes/{id}", "access": "public", "handler": "app.NoteRoutes.get",
+	}}
+	request := graph.Node{ID: "htmx_call:NoteApi.scala:11:60", Kind: graph.KindHTMXCall, Name: route.Name, Attrs: map[string]string{
+		"method": "GET", "url": "/api/notes/{noteId}", "trigger": "fetch", "target": route.Name,
+	}}
+	view := graph.Node{ID: "func:app.NoteDetailPage.render", Kind: graph.KindFunc, Name: "NoteDetailPage.render"}
+	err = g.Write(t.Context(), func(w *graph.Writer) error {
+		for _, n := range []graph.Node{notes, detail, route, request, view} {
+			if err := w.AddNode(n); err != nil {
+				return err
+			}
+		}
+		for _, e := range []graph.Edge{
+			{From: detail.ID, To: view.ID, Kind: graph.EdgeHandledBy},
+			{From: detail.ID, To: request.ID, Kind: graph.EdgeRequests},
+			{From: request.ID, To: route.ID, Kind: graph.EdgeHandledBy},
+			{From: notes.ID, To: detail.ID, Kind: graph.EdgeNavigatesTo, Attrs: map[string]string{"trigger": "link"}},
+			{From: detail.ID, To: notes.ID, Kind: graph.EdgeNavigatesTo, Attrs: map[string]string{"trigger": "navigate"}},
+		} {
+			if err := w.AddEdge(e); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &analysis.Project{Lang: analysis.LangScala, Graph: g}
+
+	var routes []RouteInfo
+	if rec := serve(t, p, "/api/routes"); rec.Code != 200 || decode(rec, &routes) != nil || len(routes) != 1 {
+		t.Errorf("routes without pages: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := serve(t, p, "/api/routes?pages=1"); rec.Code != 200 || decode(rec, &routes) != nil || len(routes) != 3 {
+		t.Fatalf("routes with pages: %d %s", rec.Code, rec.Body.String())
+	}
+	for _, ri := range routes {
+		if isPage := strings.HasPrefix(ri.ID, "page:"); ri.Page != isPage {
+			t.Errorf("%s: page %v", ri.ID, ri.Page)
+		}
+	}
+
+	var d PageDetail
+	if rec := serve(t, p, "/api/page?route="+q(detail.ID)); rec.Code != 200 || decode(rec, &d) != nil {
+		t.Fatalf("page: %d %s", rec.Code, rec.Body.String())
+	}
+	if d.Route.Pattern != "/app/notes/{noteId}" || d.Route.Handler != "app.NoteDetailPage.render" ||
+		len(d.Requests) != 1 || d.Requests[0].Node.Attrs["target"] != route.Name ||
+		len(d.Links) != 1 || d.Links[0].Node.ID != notes.ID || d.Links[0].Edge.Attrs["trigger"] != "navigate" {
+		t.Errorf("page detail: %+v", d)
+	}
+
+	var sitemap mermaid.Diagram
+	if rec := serve(t, p, "/api/diagrams/sitemap?get=1"); rec.Code != 200 || decode(rec, &sitemap) != nil {
+		t.Fatalf("site map: %d %s", rec.Code, rec.Body.String())
+	}
+	for _, want := range []string{`("/app/notes")`, `("/app/notes/{noteId}")`, `("GET /api/notes/{id}")`, "r0 --> r1", "r1 --> r0"} {
+		if !strings.Contains(sitemap.Mermaid, want) {
+			t.Errorf("site map lacks %q:\n%s", want, sitemap.Mermaid)
+		}
+	}
+}

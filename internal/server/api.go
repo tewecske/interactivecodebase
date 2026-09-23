@@ -67,11 +67,15 @@ func (s *Server) listEntries(r *http.Request) (any, error) {
 }
 
 func (s *Server) listRoutes(r *http.Request) (any, error) {
-	nodes, err := s.p.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
+	q := r.URL.Query()
+	kinds := []graph.NodeKind{graph.KindRoute}
+	if q.Get("pages") == "1" {
+		kinds = append(kinds, graph.KindPage)
+	}
+	nodes, err := s.p.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: kinds})
 	if err != nil {
 		return nil, err
 	}
-	q := r.URL.Query()
 	var out []RouteInfo
 	for _, n := range sortByPos(nodes) {
 		ri := routeInfo(n)
@@ -80,7 +84,9 @@ func (s *Server) listRoutes(r *http.Request) (any, error) {
 			(q.Get("q") != "" && !strings.Contains(strings.ToLower(ri.Pattern), strings.ToLower(q.Get("q")))) {
 			continue
 		}
-		if nbs, err := s.p.Graph.Neighbors(r.Context(), n.ID, graph.Out, graph.EdgeRenders); err == nil && len(nbs) > 0 {
+		if n.Kind == graph.KindPage {
+			ri.Page = true
+		} else if nbs, err := s.p.Graph.Neighbors(r.Context(), n.ID, graph.Out, graph.EdgeRenders); err == nil && len(nbs) > 0 {
 			ri.Page = true
 		}
 		out = append(out, ri)
@@ -167,15 +173,16 @@ func (s *Server) page(r *http.Request) (any, error) {
 	return p, nil
 }
 
-// routeNode reads the "route" parameter: a route or entry point node ID,
-// or "METHOD pattern".
+// routeNode reads the "route" parameter: a route, page or entry point node
+// ID, or "METHOD pattern".
 func (s *Server) routeNode(r *http.Request) (graph.Node, error) {
 	key, err := required(r, "route")
 	if err != nil {
 		return graph.Node{}, err
 	}
 	id := key
-	if !strings.HasPrefix(key, string(graph.KindRoute)+":") && !strings.HasPrefix(key, string(graph.KindEntry)+":") {
+	if !strings.HasPrefix(key, string(graph.KindRoute)+":") && !strings.HasPrefix(key, string(graph.KindEntry)+":") &&
+		!strings.HasPrefix(key, string(graph.KindPage)+":") {
 		id = graph.NodeID(graph.KindRoute, key)
 	}
 	n, err := s.p.Graph.Node(r.Context(), id)

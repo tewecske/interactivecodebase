@@ -37,6 +37,8 @@ export function nodeHref(id: string): string {
   switch (kind) {
     case "route":
       return href("route", { id: id.slice("route:".length) });
+    case "page":
+      return href("route", { id });
     case "sql_table":
       return href("table", { name: id.slice("sql_table:".length) });
     case "entry":

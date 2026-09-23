@@ -142,6 +142,8 @@ func TestScalaFixture(t *testing.T) {
 		t.Errorf("ER diagram: %v\n%s", err, er.Mermaid)
 	}
 
+	compareScalaPages(ctx, t, filepath.Join(dir, "pages.json"), g, all)
+
 	// The flow of a route goes through its handler and the repository down
 	// to the query and its table.
 	code, stdout, stderr = run(t, "query", dir, "flow", "GET /api/notes/{id}")
@@ -249,5 +251,93 @@ func compareScalaRoutes(t *testing.T, path string, nodes []graph.Node) {
 	}
 	for key := range got {
 		t.Errorf("unexpected route %s", key)
+	}
+}
+
+// scalaPage is a frontend page of the Scala fixture: its views, the
+// requests they make and the pages they navigate to.
+type scalaPage struct {
+	Pattern     string          `json:"pattern"`
+	Page        string          `json:"page"`
+	Views       []string        `json:"views"`
+	Requests    []scalaRequest  `json:"requests"`
+	NavigatesTo []scalaNavigate `json:"navigatesTo"`
+}
+
+// scalaRequest is a request a page makes: the route it resolves to, or the
+// method and path no route serves.
+type scalaRequest struct {
+	Route      string `json:"route,omitempty"`
+	Unresolved string `json:"unresolved,omitempty"`
+	Trigger    string `json:"trigger"`
+	Via        string `json:"via"`
+}
+
+type scalaNavigate struct {
+	To      string `json:"to"`
+	Trigger string `json:"trigger"`
+	Via     string `json:"via"`
+}
+
+// compareScalaPages checks the page nodes and their handled_by, requests
+// and navigates_to edges against the golden pages in path.
+func compareScalaPages(ctx context.Context, t *testing.T, path string, g *graph.Graph, nodes []graph.Node) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want []scalaPage
+	if err := json.Unmarshal(data, &want); err != nil {
+		t.Fatal(err)
+	}
+	out := func(id string, kind graph.EdgeKind) []graph.Neighbor {
+		nbs, err := g.Neighbors(ctx, id, graph.Out, kind)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nbs
+	}
+	got := []scalaPage{}
+	for _, n := range nodes {
+		if n.Kind != graph.KindPage {
+			continue
+		}
+		p := scalaPage{Pattern: n.Attrs["pattern"], Page: n.Attrs["page"], Views: []string{}, Requests: []scalaRequest{}, NavigatesTo: []scalaNavigate{}}
+		if n.ID != "page:"+p.Pattern || n.Name != p.Pattern || n.Attrs["method"] != "GET" {
+			t.Errorf("page %s: name %q, method %q", n.ID, n.Name, n.Attrs["method"])
+		}
+		for _, nb := range out(n.ID, graph.EdgeHandledBy) {
+			p.Views = append(p.Views, nb.Node.ID)
+		}
+		for _, nb := range out(n.ID, graph.EdgeRequests) {
+			a := nb.Node.Attrs
+			r := scalaRequest{Route: a["target"], Trigger: a["trigger"], Via: a["via"]}
+			routes := out(nb.Node.ID, graph.EdgeHandledBy)
+			if r.Route == "" {
+				r.Unresolved = a["method"] + " " + a["url"]
+			}
+			if len(routes) != min(len(r.Route), 1) || (r.Route != "" && routes[0].Node.ID != "route:"+r.Route) {
+				t.Errorf("request %s: target %q, handled by %v", nb.Node.ID, r.Route, routes)
+			}
+			p.Requests = append(p.Requests, r)
+		}
+		for _, nb := range out(n.ID, graph.EdgeNavigatesTo) {
+			p.NavigatesTo = append(p.NavigatesTo, scalaNavigate{To: nb.Node.ID, Trigger: nb.Edge.Attrs["trigger"], Via: nb.Edge.Attrs["via"]})
+		}
+		slices.Sort(p.Views)
+		slices.SortFunc(p.Requests, func(a, b scalaRequest) int {
+			return cmp.Or(cmp.Compare(a.Route, b.Route), cmp.Compare(a.Unresolved, b.Unresolved))
+		})
+		slices.SortFunc(p.NavigatesTo, func(a, b scalaNavigate) int {
+			return cmp.Or(cmp.Compare(a.To, b.To), cmp.Compare(a.Trigger, b.Trigger))
+		})
+		got = append(got, p)
+	}
+	slices.SortFunc(got, func(a, b scalaPage) int { return cmp.Compare(a.Pattern, b.Pattern) })
+	gotJSON, _ := json.MarshalIndent(got, "", "  ")
+	wantJSON, _ := json.MarshalIndent(want, "", "  ")
+	if string(gotJSON) != string(wantJSON) {
+		t.Errorf("pages:\n%s\nwant:\n%s", gotJSON, wantJSON)
 	}
 }

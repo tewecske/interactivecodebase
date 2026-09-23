@@ -58,9 +58,9 @@ func New(cur *live.Current, lspClient *lsp.Client) *mcp.Server {
 		Instructions: instructions,
 	})
 	tool := func(name, desc string) *mcp.Tool { return &mcp.Tool{Name: name, Description: desc} }
-	mcp.AddTool(srv, tool("list_routes", "List the HTTP routes: method, pattern, access level (public, authenticated, admin, guest; * = public but reads the session), handler and registration position. Optional filters."), s.listRoutes)
+	mcp.AddTool(srv, tool("list_routes", "List the HTTP routes: method, pattern, access level (public, authenticated, admin, guest; * = public but reads the session), handler and registration position, then the frontend pages of a single-page app with their IDs. Optional filters."), s.listRoutes)
 	mcp.AddTool(srv, tool("list_entry_points", "List the entry points other than HTTP routes: goroutines started from main (workers) and the named jobs they run, CLI commands, gRPC methods and message consumers, with the function each runs. Pass an entry's ID to get_flow to see its SQL."), s.listEntryPoints)
-	mcp.AddTool(srv, tool("get_route", "Describe a route: access and its evidence, handler, middleware, templates, the requests and static assets its page uses, and where you can navigate to and from."), s.getRoute)
+	mcp.AddTool(srv, tool("get_route", "Describe a route or a frontend page (by its page: ID): access and its evidence, handler, middleware, templates, the requests and static assets its page uses, and where you can navigate to and from."), s.getRoute)
 	mcp.AddTool(srv, tool("get_flow", "The call flow of a route (or of an entry point from list_entry_points) from its handler down to SQL (with tables), files, outbound HTTP, mail, processes and env reads, following interface dispatch. format=text (tree) or mermaid (sequence diagram)."), s.getFlow)
 	mcp.AddTool(srv, tool("get_node", "Describe any graph node by ID or name: kind, package, source position, detail (signature, SQL, URL) and its incoming and outgoing edges."), s.getNode)
 	mcp.AddTool(srv, tool("get_source", "Read lines of a source file of the module (path relative to the module root)."), s.getSource)
@@ -150,7 +150,31 @@ func routesText(ctx context.Context, p *analysis.Project, in ListRoutesIn) (stri
 	if n > maxListLines {
 		header += fmt.Sprintf("showing the first %d; narrow with access, method or match\n", maxListLines)
 	}
-	return header + b.String(), nil
+	pages, err := pagesText(ctx, p, in)
+	return header + b.String() + pages, err
+}
+
+// pagesText lists the frontend pages matching in's pattern text.
+func pagesText(ctx context.Context, p *analysis.Project, in ListRoutesIn) (string, error) {
+	nodes, err := p.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindPage}})
+	if err != nil || len(nodes) == 0 || in.Access != "" || (in.Method != "" && !strings.EqualFold(in.Method, "GET")) {
+		return "", err
+	}
+	slices.SortStableFunc(nodes, byPos)
+	var b strings.Builder
+	n := 0
+	for _, pg := range nodes {
+		if in.Match != "" && !strings.Contains(strings.ToLower(pg.Name), strings.ToLower(in.Match)) {
+			continue
+		}
+		if n++; n <= maxListLines {
+			fmt.Fprintf(&b, "%s\t%s\t%s\n", pg.ID, short(pg.Attrs["handler"]), pos(pg.Pos))
+		}
+	}
+	if n == 0 {
+		return "", nil
+	}
+	return fmt.Sprintf("%d frontend pages (ID, view, position)\n", n) + b.String(), nil
 }
 
 func (s *server) listEntryPoints(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
@@ -187,7 +211,7 @@ type RouteIn struct {
 
 func (s *server) getRoute(ctx context.Context, _ *mcp.CallToolRequest, in RouteIn) (*mcp.CallToolResult, any, error) {
 	return s.with(func(p *analysis.Project) (string, error) {
-		rt, err := resolveKind(ctx, p.Graph, in.Route, graph.KindRoute)
+		rt, err := resolveKind(ctx, p.Graph, in.Route, graph.KindRoute, graph.KindPage)
 		if err != nil {
 			return "", err
 		}

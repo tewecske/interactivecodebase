@@ -211,4 +211,66 @@ class ExtractorSuite extends munit.FunSuite {
   test("JSON strings are escaped") {
     assertEquals(Json.quote("a\"b\\c\nd\u0001"), "\"a\\\"b\\\\c\\nd\\u0001\"")
   }
+
+  // Frontend: src/test/scala/sample/front.
+
+  private def page(path: String): Node = node(s"page:$path")
+
+  private def out(from: String, kind: String): List[Edge] = graph.allEdges.filter(e => e.from == from && e.kind == kind).toList
+
+  test("Waypoint routes are pages") {
+    val item = page("/{basePath}/items/{itemId}/as/{label}")
+    assertEquals(item.kind, "page")
+    assertEquals(item.name, "/{basePath}/items/{itemId}/as/{label}")
+    assertEquals(item.attrs("method"), "GET")
+    assertEquals(item.attrs("page"), "sample.front.Page.Item")
+    assertEquals(item.attrs("handler"), "sample.front.Views.item")
+    assertEquals(item.pos.map(p => (p.file, p.startLine)), Some(("src/test/scala/sample/front/Front.scala", 34)))
+    assertEquals(page("/{basePath}/home").detail, "Page.Home")
+    // A decode-only route is a page of its own.
+    assertEquals(page("/{basePath}").attrs("page"), "sample.front.Page.Home")
+    assertEquals(graph.allNodes.count(_.kind == "page"), 4)
+  }
+
+  test("pages are handled by the views rendering them") {
+    assertEdge("page:/{basePath}/home", "func:sample.front.Views.home", "handled_by")
+    assertEdge("page:/{basePath}/items/{itemId}/as/{label}", "func:sample.front.Views.item", "handled_by")
+    assertEdge("page:/{basePath}/start", "func:sample.front.Views.start", "handled_by")
+    assertEquals(out("page:/{basePath}/start", "handled_by").size, 1)
+  }
+
+  test("requests through shared templates and endpoints go to their routes") {
+    def requests(path: String): List[Node] = out(s"page:$path", "requests").map(e => node(e.to))
+    val item = requests("/{basePath}/items/{itemId}/as/{label}")
+    assertEquals(item.map(_.name), List("GET /api/items/{id}", "PUT /api/items/{name}", "GET /api/search"))
+    assertEquals(item.map(_.attrs.get("target")), List(Some("GET /api/items/{id}"), Some("PUT /api/items/{name}"), None))
+    assertEquals(item.map(_.attrs("via")), List("sample.front.Client.item", "sample.front.Client.rename", "sample.front.Client.search"))
+    assertEquals(item.head.kind, "htmx_call")
+    assertEquals(item.head.attrs("trigger"), "fetch")
+    assertEdge(item.head.id, "route:GET /api/items/{id}", "handled_by")
+    assertEdge(item(1).id, "route:PUT /api/items/{name}", "handled_by")
+    assertEquals(out(item(2).id, "handled_by"), Nil)
+    assertEquals(requests("/{basePath}/home").map(_.name), List("GET /api/count"))
+    assertEquals(requests("/{basePath}/start"), Nil)
+  }
+
+  test("navigation between pages") {
+    def nav(path: String): List[(String, String, String)] = {
+      out(s"page:$path", "navigates_to").map(e => (e.to.stripPrefix("page:"), e.attrs("trigger"), e.attrs("via"))).sorted
+    }
+    // Links to Home use its linkable route only; the link helper's page
+    // comes from its caller.
+    assertEquals(
+      nav("/{basePath}/home"),
+      List(
+        ("/{basePath}/home", "link", "sample.front.Views.shell"),
+        ("/{basePath}/items/{itemId}/as/{label}", "link", "sample.front.Views.home"),
+      ),
+    )
+    assertEquals(
+      nav("/{basePath}/items/{itemId}/as/{label}"),
+      List(("/{basePath}/home", "link", "sample.front.Views.shell"), ("/{basePath}/home", "navigate", "sample.front.Views.item")),
+    )
+    assertEquals(nav("/{basePath}/start"), Nil)
+  }
 }

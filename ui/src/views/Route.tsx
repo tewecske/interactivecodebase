@@ -5,10 +5,12 @@ import { useAsync } from "../useAsync";
 import { shortFunc } from "./SiteMap";
 
 // RouteView is a route's page drill-down: what it is, who may call it,
-// what its page requests and loads, and where you can go from it.
+// what its page requests and loads, and where you can go from it. A
+// frontend page ("page:/path") shows the same for the view rendering it.
 export function RouteView({ routeKey }: { routeKey: string }) {
+  const isPage = routeKey.startsWith("page:");
   const page = useAsync(() => api.page(routeKey), [routeKey]);
-  const node = useAsync(() => api.node(`route:${routeKey}`), [routeKey]);
+  const node = useAsync(() => api.node(isPage ? routeKey : `route:${routeKey}`), [routeKey]);
   return (
     <Loaded state={page}>
       {(p) => {
@@ -17,7 +19,8 @@ export function RouteView({ routeKey }: { routeKey: string }) {
         return (
           <section>
             <h1>
-              <span className="method">{r.method}</span> {r.pattern} <AccessBadge access={r.access} optional={r.optionalAuth} />
+              <span className="method">{isPage ? "page" : r.method}</span> {r.pattern}{" "}
+              {!isPage && <AccessBadge access={r.access} optional={r.optionalAuth} />}
             </h1>
             <p className="muted">
               registered at <PosLink pos={r.pos} />
@@ -25,17 +28,19 @@ export function RouteView({ routeKey }: { routeKey: string }) {
               {r.static && " · serves static files"}
             </p>
             <div className="actions">
-              <a className="button" href={href("flow", { route: routeKey })}>
-                Call flow ↓ SQL
-              </a>
+              {!isPage && (
+                <a className="button" href={href("flow", { route: routeKey })}>
+                  Call flow ↓ SQL
+                </a>
+              )}
               <a className="button" href={href("node", { id: handlerID })}>
-                Handler code
+                {isPage ? "View code" : "Handler code"}
               </a>
             </div>
             <table className="grid">
               <tbody>
                 <tr>
-                  <th>Handler</th>
+                  <th>{isPage ? "View" : "Handler"}</th>
                   <td className="mono">
                     <a href={href("node", { id: handlerID })}>{shortFunc(r.handler)}</a>
                   </td>
@@ -46,12 +51,14 @@ export function RouteView({ routeKey }: { routeKey: string }) {
                     <td className="mono">{r.middleware.map(shortFunc).join(" › ")}</td>
                   </tr>
                 )}
-                <tr>
-                  <th>Access</th>
-                  <td>
-                    <AccessBadge access={r.access} optional={r.optionalAuth} /> <span className="muted mono">{r.evidence ? shortFunc(r.evidence) : "no guard"}</span>
-                  </td>
-                </tr>
+                {!isPage && (
+                  <tr>
+                    <th>Access</th>
+                    <td>
+                      <AccessBadge access={r.access} optional={r.optionalAuth} /> <span className="muted mono">{r.evidence ? shortFunc(r.evidence) : "no guard"}</span>
+                    </td>
+                  </tr>
+                )}
                 {r.variants && (
                   <tr>
                     <th>Variants</th>
@@ -95,7 +102,7 @@ function Requests({ requests }: { requests: Neighbor[] }) {
           <tr>
             <th>Target</th>
             <th>Trigger</th>
-            <th>In template</th>
+            <th>Made in</th>
           </tr>
         </thead>
         <tbody>
@@ -121,7 +128,7 @@ function Requests({ requests }: { requests: Neighbor[] }) {
                   <code>{a.trigger}</code>
                 </td>
                 <td>
-                  {a.template} <PosLink pos={node.pos} />
+                  {a.template ?? (a.via && <span className="mono">{shortFunc(a.via)}</span>)} <PosLink pos={node.pos} />
                 </td>
               </tr>
             );
@@ -150,7 +157,13 @@ function Assets({ assets }: { assets: Neighbor[] }) {
   );
 }
 
-const triggerLabels: Record<string, string> = { link: "Links", form: "Form submissions", redirect: "Redirects", "hx-redirect": "HTMX redirects" };
+const triggerLabels: Record<string, string> = {
+  link: "Links",
+  form: "Form submissions",
+  redirect: "Redirects",
+  "hx-redirect": "HTMX redirects",
+  navigate: "Navigations",
+};
 
 function Navigation({ title, edges }: { title: string; edges: Neighbor[] }) {
   if (edges.length === 0) return null;

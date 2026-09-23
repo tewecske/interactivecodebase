@@ -30,6 +30,9 @@ final class Graph {
 
   def node(id: String): Option[Node] = nodes.get(id)
 
+  /** Replaces the node with n's ID. */
+  def replaceNode(n: Node): Unit = nodes(n.id) = n
+
   def allNodes: Seq[Node] = nodes.values.toSeq.sortBy(_.id)
 
   /** The edges between nodes of the graph, sorted by source, position and

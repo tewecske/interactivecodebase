@@ -25,7 +25,7 @@ import scala.tasty.inspector.*
   *
   * Only the inspected classes become nodes: calls into libraries are left
   * out, except sinks (see [[Sinks]]). Routes adds the zio-http routes (see
-  * [[Routing]]).
+  * [[Routing]]), Frontend a Laminar frontend's pages (see [[Frontend]]).
   */
 final class Extractor(root: Path, graph: Graph, guards: Map[String, String] = Map.empty) extends Inspector {
   def inspect(using q: Quotes)(tastys: List[Tasty[q.type]]): Unit = {
@@ -37,7 +37,8 @@ final class Extractor(root: Path, graph: Graph, guards: Map[String, String] = Ma
 private final class Walk(root: Path, val graph: Graph, val guards: Map[String, String])(using val q: Quotes)
     extends Routing
     with Sinks
-    with Quill {
+    with Quill
+    with Frontend {
   import q.reflect.*
 
   // Named classes, traits and objects of the inspected TASTy.
@@ -57,6 +58,7 @@ private final class Walk(root: Path, val graph: Graph, val guards: Map[String, S
     classDefs.foreach(addClass)
     addRoutes()
     addDispatch()
+    addPages()
   }
 
   private def collect(tree: Tree): Unit = tree match {
@@ -150,6 +152,7 @@ private final class Walk(root: Path, val graph: Graph, val guards: Map[String, S
             case _        =>
           }
           addSink(from, t, owner)
+          addFrontend(from, t, owner)
           super.traverseTree(t)(o)
         }
       }

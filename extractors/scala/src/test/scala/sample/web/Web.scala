@@ -8,7 +8,7 @@ import zio.http.codec.PathCodec
 import zio.http.endpoint.Endpoint
 
 enum Verb {
-  case GET, POST
+  case GET, POST, PUT
 }
 
 /** A method and path template, like gathedge's ApiPath. */
