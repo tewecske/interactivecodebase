@@ -2,6 +2,7 @@ package mermaid
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/tewecske/interactivecodebase/internal/flow"
@@ -20,13 +21,16 @@ var sinkLanes = map[graph.NodeKind]string{
 
 // Sequence draws a route's flow as a sequence diagram: one participant per
 // package (the layers: handler, service, store) plus one per kind of
-// external system its sinks reach.
+// external system its sinks reach. Messages are numbered (autonumber) and
+// IDs maps each number to the graph node the message calls, since Mermaid
+// cannot attach clicks to messages. An interface call with several
+// implementations becomes an alt block with one branch each.
 func Sequence(root *flow.Step) Diagram {
 	s := &sequence{b: newBuilder("sequenceDiagram", "p"), lanes: map[string]string{}}
 	s.b.line("  actor Browser")
 	s.b.line("  autonumber")
 	for _, h := range root.Children {
-		s.message("Browser", h, root.Node.Name)
+		s.message("Browser", h, root.Node.Name+" → "+h.Node.Name)
 		s.walk(h)
 	}
 	// Participants are declared implicitly by first use, in order.
@@ -36,6 +40,13 @@ func Sequence(root *flow.Step) Diagram {
 type sequence struct {
 	b     *builder
 	lanes map[string]string // lane title -> alias
+	msgs  int
+}
+
+// numbered records the graph node behind the next message number.
+func (s *sequence) numbered(graphID string) {
+	s.msgs++
+	s.b.ids[strconv.Itoa(s.msgs)] = graphID
 }
 
 func (s *sequence) lane(title string) string {
@@ -71,15 +82,26 @@ func (s *sequence) walk(step *flow.Step) {
 	for _, c := range step.Children {
 		switch {
 		case c.Node.Kind == graph.KindInterfaceCall:
-			// Show dispatch as a call to each implementation, labelled
-			// with the interface method.
-			if len(c.Children) == 0 {
+			// Show dispatch as a call to the implementation, labelled with
+			// the interface method; alternatives when there are several.
+			switch len(c.Children) {
+			case 0:
 				s.message(from, c, "interface "+c.Node.Name)
-				continue
-			}
-			for _, impl := range c.Children {
+			case 1:
+				impl := c.Children[0]
 				s.message(from, impl, c.Node.Name+" → "+impl.Node.Name)
 				s.walk(impl)
+			default:
+				for i, impl := range c.Children {
+					keyword := "else"
+					if i == 0 {
+						keyword = "alt"
+					}
+					s.b.line("  %s %s", keyword, label(impl.Node.Name))
+					s.message(from, impl, c.Node.Name+" → "+impl.Node.Name)
+					s.walk(impl)
+				}
+				s.b.line("  end")
 			}
 		case strings.HasPrefix(string(c.Node.Kind), "sink."):
 			s.sink(from, c)
@@ -106,6 +128,7 @@ func (s *sequence) message(from string, step *flow.Step, text string) {
 	if step.Calls > 1 {
 		text += fmt.Sprintf(" ×%d", step.Calls)
 	}
+	s.numbered(step.Node.ID)
 	s.b.line("  %s->>%s: %s", from, to, label(text))
 }
 
@@ -123,6 +146,7 @@ func (s *sequence) sink(from string, step *flow.Step) {
 	case step.Node.Detail != "":
 		text += " " + summary(step.Node.Detail)
 	}
+	s.numbered(step.Node.ID)
 	s.b.line("  %s->>%s: %s", from, to, label(text))
 }
 

@@ -2,7 +2,7 @@ sequenceDiagram
   actor Browser
   autonumber
   participant web as web
-  Browser->>web: POST /{lang}/notes/{id}/share
+  Browser->>web: POST /{lang}/notes/{id}/share → (*noteHandler).share
   web->>web: (*noteHandler).user
   web->>web: (*Authenticator).Authenticate
   participant postgres as postgres

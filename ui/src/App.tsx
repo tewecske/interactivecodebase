@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { href, navigate, useLocation, type Location } from "./router";
 import { useTheme, type Theme } from "./theme";
 import { Home } from "./views/Home";
+import { FlowView } from "./views/Flow";
 import { NodeView } from "./views/Node";
 import { RouteView } from "./views/Route";
 import { SiteMap } from "./views/SiteMap";
@@ -17,6 +18,7 @@ export const views: Record<string, { title: (p: Record<string, string>) => strin
   node: { title: (p) => p.id?.slice(p.id.indexOf(":") + 1) ?? "Node", render: ({ params }) => <NodeView id={params.id} /> },
   sitemap: { title: () => "Site map", render: ({ params, theme }) => <SiteMap params={params} theme={theme} /> },
   route: { title: (p) => p.id ?? "Route", render: ({ params }) => <RouteView routeKey={params.id} /> },
+  flow: { title: (p) => `Flow: ${p.route}`, render: ({ params, theme }) => <FlowView params={params} theme={theme} /> },
 };
 
 const nav = [

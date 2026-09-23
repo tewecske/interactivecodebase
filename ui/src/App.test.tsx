@@ -43,6 +43,23 @@ const responses: Record<string, unknown> = {
     out: {},
     in: { navigates_to: [{ edge: { id: 7, from: "", to: "", kind: "navigates_to", pos: {}, attrs: { trigger: "link", template: "notes.html" } }, node: { id: "route:GET /{lang}/notes", kind: "route", name: "GET /{lang}/notes", pos: {} } }] },
   },
+  [`api/diagrams/flow?${new URLSearchParams({ route: "POST /{lang}/notes", prune: "sinks" })}`]: {
+    mermaid: "sequenceDiagram\n  actor Browser\n  Browser->>web: POST\n",
+    ids: { "1": "method:(*example.com/webapp/internal/web.noteHandler).create", "2": "sink.sql:internal/store/postgres/notes.go:33:3" },
+  },
+  [`api/flow?${new URLSearchParams({ route: "POST /{lang}/notes", prune: "sinks" })}`]: {
+    node: { id: "route:POST /{lang}/notes", kind: "route", name: "POST /{lang}/notes", pos: {} },
+    edge: { id: 0, from: "", to: "", kind: "", pos: {} },
+    children: [{
+      node: { id: "method:h", kind: "method", name: "(*noteHandler).create", pos: { file: "internal/web/handlers.go", startLine: 88 } },
+      edge: { id: 1, from: "", to: "", kind: "handled_by", pos: {} },
+      children: [{
+        node: { id: "sink.sql:x", kind: "sink.sql", name: "(*sql.Tx).ExecContext", detail: "INSERT INTO audit_events", pos: {} },
+        edge: { id: 2, from: "", to: "", kind: "calls", pos: {} },
+        children: [{ node: { id: "sql_table:audit_events", kind: "sql_table", name: "audit_events", pos: {} }, edge: { id: 3, from: "", to: "", kind: "queries", pos: {}, attrs: { op: "insert" } } }],
+      }],
+    }],
+  },
   "api/node?id=func%3Aexample.com%2Fapp.F": {
     node: { id: "func:example.com/app.F", kind: "func", name: "F", package: "example.com/app", pos: { file: "app.go", startLine: 3 } },
     out: { calls: [{ edge: { id: 1, from: "func:example.com/app.F", to: "func:example.com/app.G", kind: "calls", pos: {} }, node: { id: "func:example.com/app.G", kind: "func", name: "G", pos: {} } }] },
@@ -120,6 +137,17 @@ describe("App", () => {
     expect(text).toContain("by (*web.noteHandler).user");
     expect(text).toContain("Reached from (1)");
     expect([...el.querySelectorAll("a.pos")].map((a) => a.textContent)).toContain("templates/note.html:5");
+  });
+
+  it("shows a flow as numbered sequence steps and as a call tree", async () => {
+    mockFetch();
+    const seq = await render("#/flow?" + new URLSearchParams({ route: "POST /{lang}/notes" }));
+    const steps = [...seq.querySelectorAll("ol.steps li")].map((li) => li.textContent);
+    expect(steps).toEqual(["(*web.noteHandler).create", "sink.sql at internal/store/postgres/notes.go:33:3"]);
+    expect(seq.querySelector(".diagram-canvas svg")).not.toBeNull();
+    const tree = await render("#/flow?" + new URLSearchParams({ route: "POST /{lang}/notes", mode: "tree" }));
+    expect(tree.textContent).toContain("insert table");
+    expect(tree.textContent).toContain("INSERT INTO audit_events");
   });
 
   it("toggles the theme", async () => {
