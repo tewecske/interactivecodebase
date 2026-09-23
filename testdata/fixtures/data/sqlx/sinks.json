@@ -1,0 +1,44 @@
+[
+  {
+    "caller": "(*example.com/sqlxapp.store).audit",
+    "callee": "(*github.com/jmoiron/sqlx.DB).MustExec",
+    "tables": [
+      "audit_log:insert"
+    ]
+  },
+  {
+    "caller": "(*example.com/sqlxapp.store).createUser",
+    "callee": "(*github.com/jmoiron/sqlx.DB).NamedExec",
+    "tables": [
+      "users:insert"
+    ]
+  },
+  {
+    "caller": "(*example.com/sqlxapp.store).notes",
+    "callee": "(*github.com/jmoiron/sqlx.DB).Select",
+    "tables": [
+      "notes:select"
+    ]
+  },
+  {
+    "caller": "(*example.com/sqlxapp.store).rename",
+    "callee": "(*github.com/jmoiron/sqlx.Tx).NamedExecContext",
+    "tables": [
+      "users:update"
+    ]
+  },
+  {
+    "caller": "(*example.com/sqlxapp.store).search",
+    "callee": "(*github.com/jmoiron/sqlx.DB).Queryx",
+    "tables": [
+      "users:select"
+    ]
+  },
+  {
+    "caller": "(*example.com/sqlxapp.store).user",
+    "callee": "(*github.com/jmoiron/sqlx.DB).GetContext",
+    "tables": [
+      "users:select"
+    ]
+  }
+]
