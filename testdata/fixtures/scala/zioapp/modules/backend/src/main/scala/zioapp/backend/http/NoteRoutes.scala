@@ -55,7 +55,9 @@ object NoteRoutes {
     }
   }
 
-  private def remove(key: java.util.UUID, req: Request): UIO[Response] = ZIO.succeed(Response.ok)
+  private def remove(key: java.util.UUID, req: Request): URIO[NoteService, Response] = {
+    NoteService.remove(key.getLeastSignificantBits).map(if (_) Response.ok else Response.notFound).orDie
+  }
 
   private def toResponse(note: Option[zioapp.shared.Note]): Response = {
     note.fold(Response.notFound)(n => Response.json(n.toJson))

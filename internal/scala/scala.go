@@ -2,7 +2,8 @@
 // project and reports each project's classpath; icb-scala, the extractor
 // in extractors/scala, reads the TASTy of the project's own classes and
 // writes the code graph as JSON (docs/graph.schema.json), which is
-// imported as an analysis.Project.
+// imported as an analysis.Project, whose SQL sinks are then linked to the
+// tables of the project's migrations (Flyway's by default).
 //
 // Both run on the JVM. The machine may be shared, so each gets a capped
 // heap: sbt through -J-Xmx, the extractor through its launcher script.
@@ -24,6 +25,7 @@ import (
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/sqlparse"
 )
 
 // DefaultHeap caps sbt's heap.
@@ -42,6 +44,10 @@ type Options struct {
 	SBT string
 	// Projects are the sbt projects to analyze, e.g. backend; default all.
 	Projects []string
+	// MigrationDirs are the directories with SQL migrations, relative to
+	// the project directory; default sqlparse.DefaultMigrationDirs and the
+	// Flyway directories (see sqlparse.FlywayDirs).
+	MigrationDirs []string
 	// Guards maps aspects and middleware by name
 	// ("app.http.RouteSupport.authenticated") to the access they enforce
 	// on the routes they wrap: authenticated, admin or guest.
@@ -102,6 +108,9 @@ func Open(ctx context.Context, dir string, opts Options) (*analysis.Project, err
 		return nil, fmt.Errorf("scala: importing the extractor's graph: %w", err)
 	}
 	p.Stats.Load, p.Stats.CallGraph = load, extract
+	if err := linkSQL(ctx, p, opts.MigrationDirs); err != nil {
+		return nil, errors.Join(err, p.Close())
+	}
 	if err := count(ctx, p); err != nil {
 		return nil, errors.Join(err, p.Close())
 	}
@@ -235,6 +244,22 @@ func tail(out []byte) string {
 		return ""
 	}
 	return ":\n" + s
+}
+
+// linkSQL adds the schema from the migrations in dirs, by default the usual
+// directories and Flyway's, and links the SQL sinks to its tables.
+func linkSQL(ctx context.Context, p *analysis.Project, dirs []string) error {
+	if dirs == nil {
+		flyway, err := sqlparse.FlywayDirs(p.Dir)
+		if err != nil {
+			return err
+		}
+		dirs = append(slices.Clone(sqlparse.DefaultMigrationDirs), flyway...)
+	}
+	if err := p.LinkSQL(ctx, dirs); err != nil {
+		return fmt.Errorf("scala: linking SQL to the migrations: %w", err)
+	}
+	return nil
 }
 
 // count fills in the stats the analyze command prints: packages and

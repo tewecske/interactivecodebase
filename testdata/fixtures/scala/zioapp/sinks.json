@@ -1,0 +1,59 @@
+[
+  {
+    "kind": "sink.env",
+    "caller": "zioapp.backend.Main.port",
+    "callee": "scala.sys.env",
+    "detail": "PORT"
+  },
+  {
+    "kind": "sink.http",
+    "caller": "zioapp.backend.service.Webhook.notify",
+    "callee": "zio.http.ZClient.batched",
+    "detail": "https://hooks.example.com/notes"
+  },
+  {
+    "kind": "sink.sql",
+    "caller": "(zioapp.backend.db.NoteRepositoryLive).all",
+    "callee": "io.getquill.context.qzio.ZioJdbcContext.run",
+    "detail": "SELECT t0.id, t0.title, t0.body FROM notes t0",
+    "tables": [
+      "notes:select"
+    ]
+  },
+  {
+    "kind": "sink.sql",
+    "caller": "(zioapp.backend.db.NoteRepositoryLive).find",
+    "callee": "io.getquill.context.qzio.ZioJdbcContext.run",
+    "detail": "SELECT t0.id, t0.title, t0.body FROM notes t0",
+    "tables": [
+      "notes:select"
+    ]
+  },
+  {
+    "kind": "sink.sql",
+    "caller": "(zioapp.backend.db.NoteRepositoryLive).insert",
+    "callee": "io.getquill.context.qzio.ZioJdbcContext.run",
+    "detail": "INSERT INTO notes (title, body) VALUES ($1, $2) RETURNING id",
+    "tables": [
+      "notes:insert"
+    ]
+  },
+  {
+    "kind": "sink.sql",
+    "caller": "(zioapp.backend.db.NoteRepositoryLive).remove",
+    "callee": "io.getquill.context.qzio.ZioJdbcContext.run",
+    "detail": "DELETE FROM notes t0 WHERE t0.id = $1",
+    "tables": [
+      "notes:delete"
+    ]
+  },
+  {
+    "kind": "sink.sql",
+    "caller": "(zioapp.backend.db.NoteRepositoryLive).rename",
+    "callee": "io.getquill.context.qzio.ZioJdbcContext.run",
+    "detail": "UPDATE notes t0 SET title = $1 WHERE t0.id = $2",
+    "tables": [
+      "notes:update"
+    ]
+  }
+]

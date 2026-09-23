@@ -17,6 +17,10 @@ lazy val root = project
       "org.scalameta" %% "munit" % "1.3.6" % Test,
       // The route tests read zio-http routes.
       "dev.zio" %% "zio-http" % "3.11.3" % Test,
+      // The sink tests read Quill, Skunk, JDBC and mail calls.
+      "io.getquill" %% "quill-jdbc-zio" % "4.8.6" % Test,
+      "org.tpolecat" %% "skunk-core" % "0.6.4" % Test,
+      "jakarta.mail" % "jakarta.mail-api" % "2.1.3" % Test,
     ),
     // The tests inspect the TASTy of src/test/scala/sample and need a real
     // java.class.path; the machine is shared, so the heap is capped.

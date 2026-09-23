@@ -161,6 +161,49 @@ func TestLoadMigrationsLayouts(t *testing.T) {
 	}
 }
 
+func TestFlywayMigrations(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, content string) {
+		path := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mig := "modules/backend/src/main/resources/db/migration"
+	// V10 renames the table V2 creates: versions, not names, order them.
+	write(mig+"/postgresql/V1__init.sql", "CREATE TABLE users (id int);\n")
+	write(mig+"/postgresql/V2__words.sql", "CREATE TABLE word (id int);\n")
+	write(mig+"/postgresql/V10__rename.sql", "ALTER TABLE word RENAME TO words;\n")
+	write(mig+"/postgresql/U10__rename.sql", "ALTER TABLE words RENAME TO word;\n")
+	write(mig+"/postgresql/R__view.sql", "CREATE TABLE after_all (id int);\n")
+	write(mig+"/h2/V1__init.sql", "CREATE TABLE h2_only (id int);\n")
+	write("modules/backend/target/scala-3/classes/db/migration/V1__copy.sql", "CREATE TABLE copied (id int);\n")
+	write("other/src/main/resources/db/migration/V1__other.sql", "CREATE TABLE other (id int);\n")
+
+	dirs, err := FlywayDirs(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{mig + "/postgresql", "other/src/main/resources/db/migration"}
+	if !slices.Equal(dirs, want) {
+		t.Fatalf("FlywayDirs = %v, want %v", dirs, want)
+	}
+	s, used, err := LoadMigrations(root, dirs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, tbl := range s.Tables {
+		names = append(names, tbl.Name)
+	}
+	if !slices.Equal(used, want) || !sameSet(names, []string{"users", "words", "after_all", "other"}) || len(s.Errors) > 0 {
+		t.Errorf("used %v, tables %v, errors %v", used, names, s.Errors)
+	}
+}
+
 func columnNames(t *Table) []string {
 	var out []string
 	for _, c := range t.Columns {

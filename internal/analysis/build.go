@@ -338,31 +338,38 @@ func (b *builder) assetFile(url string) string {
 	return ""
 }
 
-// addQueries links SQL sinks to the tables they touch. Tables that the
-// migrations do not create (e.g. made by code at runtime) get an
-// "inferred" table node.
+// addQueries links SQL sinks to the tables they touch.
 func (b *builder) addQueries() error {
 	for _, s := range b.r.Sinks {
 		if s.Query == nil {
 			continue
 		}
-		for _, t := range s.Query.Tables {
-			id := TableID(t.Name)
-			if b.r.Schema.Table(t.Name) == nil && !b.added[id] {
-				b.added[id] = true
-				err := b.w.AddNode(graph.Node{ID: id, Kind: graph.KindSQLTable, Name: t.Name, Attrs: map[string]string{"inferred": "true"}})
-				if err != nil {
-					return err
-				}
-			}
-			attrs := map[string]string{"op": t.Op}
-			if len(t.Columns) > 0 {
-				attrs["columns"] = strings.Join(t.Columns, ",")
-			}
-			edge := graph.Edge{From: s.ID(b.fset, b.relFile), To: id, Kind: graph.EdgeQueries, Attrs: attrs}
-			if err := b.w.AddEdge(edge); err != nil {
+		if err := addTableUses(b.w, b.r.Schema, b.added, s.ID(b.fset, b.relFile), s.Query); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// addTableUses adds queries edges from the SQL sink from to the tables q
+// touches. Tables that the migrations do not create (e.g. made by code at
+// runtime) get an "inferred" table node, recorded in added.
+func addTableUses(w *graph.Writer, schema *sqlparse.Schema, added map[string]bool, from string, q *sqlparse.Query) error {
+	for _, t := range q.Tables {
+		id := TableID(t.Name)
+		if schema.Table(t.Name) == nil && !added[id] {
+			added[id] = true
+			err := w.AddNode(graph.Node{ID: id, Kind: graph.KindSQLTable, Name: t.Name, Attrs: map[string]string{"inferred": "true"}})
+			if err != nil {
 				return err
 			}
+		}
+		attrs := map[string]string{"op": t.Op}
+		if len(t.Columns) > 0 {
+			attrs["columns"] = strings.Join(t.Columns, ",")
+		}
+		if err := w.AddEdge(graph.Edge{From: from, To: id, Kind: graph.EdgeQueries, Attrs: attrs}); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -377,8 +384,10 @@ func ColumnID(table, column string) string {
 }
 
 // addSchema adds tables, their columns and foreign keys from the migrations.
-func (b *builder) addSchema() error {
-	s := b.r.Schema
+func (b *builder) addSchema() error { return writeSchema(b.w, b.r.Schema) }
+
+// writeSchema adds the tables of s, their columns and foreign keys.
+func writeSchema(w *graph.Writer, s *sqlparse.Schema) error {
 	for _, t := range s.Tables {
 		cols := make([]string, len(t.Columns))
 		for i, c := range t.Columns {
@@ -388,7 +397,7 @@ func (b *builder) addSchema() error {
 		if len(t.PrimaryKey) > 0 {
 			attrs["primaryKey"] = strings.Join(t.PrimaryKey, ",")
 		}
-		err := b.w.AddNode(graph.Node{
+		err := w.AddNode(graph.Node{
 			ID: TableID(t.Name), Kind: graph.KindSQLTable, Name: t.Name,
 			Detail: strings.Join(cols, ", "), Pos: schemaPos(t.Pos), Attrs: attrs,
 		})
@@ -404,10 +413,10 @@ func (b *builder) addSchema() error {
 				cattrs["primaryKey"] = "true"
 			}
 			id := ColumnID(t.Name, c.Name)
-			if err := b.w.AddNode(graph.Node{ID: id, Kind: graph.KindSQLColumn, Name: c.Name, Detail: c.Type, Pos: schemaPos(c.Pos), Attrs: cattrs}); err != nil {
+			if err := w.AddNode(graph.Node{ID: id, Kind: graph.KindSQLColumn, Name: c.Name, Detail: c.Type, Pos: schemaPos(c.Pos), Attrs: cattrs}); err != nil {
 				return err
 			}
-			if err := b.w.AddEdge(graph.Edge{From: TableID(t.Name), To: id, Kind: graph.EdgeHasColumn}); err != nil {
+			if err := w.AddEdge(graph.Edge{From: TableID(t.Name), To: id, Kind: graph.EdgeHasColumn}); err != nil {
 				return err
 			}
 		}
@@ -428,7 +437,7 @@ func (b *builder) addSchema() error {
 				attrs["onDelete"] = fk.OnDelete
 			}
 			edge := graph.Edge{From: TableID(t.Name), To: TableID(fk.RefTable), Kind: graph.EdgeFK, Pos: schemaPos(fk.Pos), Attrs: attrs}
-			if err := b.w.AddEdge(edge); err != nil {
+			if err := w.AddEdge(edge); err != nil {
 				return err
 			}
 		}
@@ -448,13 +457,7 @@ func (b *builder) addSinks() error {
 		}
 		detail := strings.Join(s.Values, "\n")
 		if q := s.Query; q != nil {
-			attrs["op"] = strings.Join(q.Ops, ",")
-			if q.Partial {
-				attrs["partial"] = "true"
-			}
-			if q.Err != nil {
-				attrs["parseError"] = q.Err.Error()
-			}
+			queryAttrs(attrs, q)
 		}
 		if s.FuncValue {
 			attrs["funcValue"] = "true"
@@ -487,6 +490,17 @@ func (b *builder) addSinks() error {
 		}
 	}
 	return nil
+}
+
+// queryAttrs records what an SQL sink's query does in its attributes.
+func queryAttrs(attrs map[string]string, q *sqlparse.Query) {
+	attrs["op"] = strings.Join(q.Ops, ",")
+	if q.Partial {
+		attrs["partial"] = "true"
+	}
+	if q.Err != nil {
+		attrs["parseError"] = q.Err.Error()
+	}
 }
 
 // shortFuncName drops the package path directories from a go/ssa name:

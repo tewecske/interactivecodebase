@@ -48,7 +48,8 @@ type Config struct {
 	Auth  Auth   `yaml:"auth"`
 	// Migrations are directories with SQL migrations, relative to the
 	// module root; default: the usual names (migrations, db/migrations,
-	// sql/schema, ...).
+	// sql/schema, ...), and for Scala also Flyway's
+	// src/main/resources/db/migration in each module.
 	Migrations []string `yaml:"migrations"`
 	// Dialect is the SQL dialect; only "postgres" is supported.
 	Dialect string `yaml:"dialect"`
@@ -203,7 +204,7 @@ func (c *Config) ScalaOptions() scala.Options {
 	if c == nil {
 		return scala.Options{}
 	}
-	opts := scala.Options{Extractor: c.Scala.Extractor, SBT: c.Scala.SBT, Projects: c.Scala.Projects}
+	opts := scala.Options{Extractor: c.Scala.Extractor, SBT: c.Scala.SBT, Projects: c.Scala.Projects, MigrationDirs: c.Migrations}
 	for _, g := range c.Auth.Guards {
 		if opts.Guards == nil {
 			opts.Guards = map[string]string{}

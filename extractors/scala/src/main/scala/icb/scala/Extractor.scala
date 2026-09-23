@@ -24,7 +24,8 @@ import scala.tasty.inspector.*
   *     and from a class to its fields' types.
   *
   * Only the inspected classes become nodes: calls into libraries are left
-  * out. Routes adds the zio-http routes (see [[Routing]]).
+  * out, except sinks (see [[Sinks]]). Routes adds the zio-http routes (see
+  * [[Routing]]).
   */
 final class Extractor(root: Path, graph: Graph, guards: Map[String, String] = Map.empty) extends Inspector {
   def inspect(using q: Quotes)(tastys: List[Tasty[q.type]]): Unit = {
@@ -33,7 +34,10 @@ final class Extractor(root: Path, graph: Graph, guards: Map[String, String] = Ma
   }
 }
 
-private final class Walk(root: Path, val graph: Graph, val guards: Map[String, String])(using val q: Quotes) extends Routing {
+private final class Walk(root: Path, val graph: Graph, val guards: Map[String, String])(using val q: Quotes)
+    extends Routing
+    with Sinks
+    with Quill {
   import q.reflect.*
 
   // Named classes, traits and objects of the inspected TASTy.
@@ -133,8 +137,9 @@ private final class Walk(root: Path, val graph: Graph, val guards: Map[String, S
     graph.addNode(Node(typeID(cls), "type", typeName(cls), pkgName(cls), detail, cls.pos.flatMap(pos(_, withEnd = false))))
   }
 
-  /** Adds calls edges from the node from to what tree refers to, leaving
-    * out route handlers inside it, which are nodes of their own.
+  /** Adds calls edges from the node from to what tree refers to and to the
+    * sinks it calls (see [[Sinks]]), leaving out route handlers inside it,
+    * which are nodes of their own.
     */
   private[scala] def addCalls(from: String, tree: Tree, owner: Symbol): Unit = {
     val traverser = new TreeTraverser {
@@ -144,6 +149,7 @@ private final class Walk(root: Path, val graph: Graph, val guards: Map[String, S
             case ref: Ref => addCall(from, ref)
             case _        =>
           }
+          addSink(from, t, owner)
           super.traverseTree(t)(o)
         }
       }
