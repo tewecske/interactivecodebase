@@ -56,6 +56,16 @@ type RouteInfo struct {
 
 // listRoutes returns routes in registration order, filtered by the
 // optional query parameters access, method and q (substring of pattern).
+// listEntries lists the entry points other than routes (workers, jobs,
+// commands, gRPC methods, consumers) in source order.
+func (s *Server) listEntries(r *http.Request) (any, error) {
+	nodes, err := s.r.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindEntry}})
+	if err != nil {
+		return nil, err
+	}
+	return nonNil(sortByPos(nodes)), nil
+}
+
 func (s *Server) listRoutes(r *http.Request) (any, error) {
 	nodes, err := s.r.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
 	if err != nil {
@@ -157,14 +167,15 @@ func (s *Server) page(r *http.Request) (any, error) {
 	return p, nil
 }
 
-// routeNode reads the "route" parameter: a route node ID or "METHOD pattern".
+// routeNode reads the "route" parameter: a route or entry point node ID,
+// or "METHOD pattern".
 func (s *Server) routeNode(r *http.Request) (graph.Node, error) {
 	key, err := required(r, "route")
 	if err != nil {
 		return graph.Node{}, err
 	}
 	id := key
-	if !strings.HasPrefix(key, string(graph.KindRoute)+":") {
+	if !strings.HasPrefix(key, string(graph.KindRoute)+":") && !strings.HasPrefix(key, string(graph.KindEntry)+":") {
 		id = graph.NodeID(graph.KindRoute, key)
 	}
 	n, err := s.r.Graph.Node(r.Context(), id)

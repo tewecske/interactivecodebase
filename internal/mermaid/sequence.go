@@ -27,14 +27,35 @@ var sinkLanes = map[graph.NodeKind]string{
 // implementations becomes an alt block with one branch each.
 func Sequence(root *flow.Step) Diagram {
 	s := &sequence{b: newBuilder("sequenceDiagram", "p"), lanes: map[string]string{}}
-	s.b.line("  actor Browser")
+	actor := starter(root.Node)
+	s.b.line("  actor %s", actor)
 	s.b.line("  autonumber")
 	for _, h := range root.Children {
-		s.message("Browser", h, root.Node.Name+" → "+h.Node.Name)
+		s.message(actor, h, root.Node.Name+" → "+h.Node.Name)
 		s.walk(h)
 	}
 	// Participants are declared implicitly by first use, in order.
 	return s.b.diagram()
+}
+
+// starter names who starts a flow: the browser for a route, and for other
+// entry points the scheduler, the user at the command line, a gRPC client
+// or the message broker.
+func starter(n graph.Node) string {
+	if n.Kind != graph.KindEntry {
+		return "Browser"
+	}
+	switch n.Attrs["entryKind"] {
+	case "worker", "job":
+		return "Scheduler"
+	case "command":
+		return "CLI"
+	case "rpc":
+		return "Client"
+	case "consumer":
+		return "Broker"
+	}
+	return "Caller"
 }
 
 type sequence struct {
@@ -114,7 +135,7 @@ func (s *sequence) walk(step *flow.Step) {
 
 func (s *sequence) message(from string, step *flow.Step, text string) {
 	to := from
-	if step.Node.Kind != graph.KindRoute {
+	if step.Node.Kind != graph.KindRoute && step.Node.Kind != graph.KindEntry {
 		to = s.laneOf(step.Node)
 	}
 	switch {

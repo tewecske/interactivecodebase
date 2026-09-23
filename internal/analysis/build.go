@@ -138,10 +138,59 @@ func (b *builder) write(w *graph.Writer) error {
 	if err := b.addRoutes(); err != nil {
 		return err
 	}
+	if err := b.addEntries(); err != nil {
+		return err
+	}
 	if err := b.addPages(); err != nil {
 		return err
 	}
 	return b.addNavigation()
+}
+
+// EntryID is the graph node ID of an entry point.
+func EntryID(e EntryPoint) string { return graph.NodeID(graph.KindEntry, e.Key()) }
+
+// addEntries adds a node per non-HTTP entry point, handled by its
+// function, with runs edges from workers to their jobs.
+func (b *builder) addEntries() error {
+	ids := map[string]bool{}
+	byName := map[string]string{} // worker name -> node ID
+	for _, e := range b.r.Entries {
+		id := EntryID(e)
+		if ids[id] { // same name, another function: tell them apart
+			p := b.fset.Position(e.Pos)
+			id += fmt.Sprintf(" (%s:%d)", b.relFile(p.Filename), p.Line)
+		}
+		ids[id] = true
+		attrs := map[string]string{"entryKind": e.Kind, "handler": origin(e.Func).String()}
+		if e.Parent != "" {
+			attrs["parent"] = e.Parent
+		}
+		err := b.w.AddNode(graph.Node{
+			ID: id, Kind: graph.KindEntry, Name: e.Name, Detail: e.Detail,
+			Package: funcPkg(e.Func).Path(), Pos: b.pos(e.Pos, token.NoPos), Attrs: attrs,
+		})
+		if err != nil {
+			return err
+		}
+		if err := b.addFunc(e.Func); err != nil {
+			return err
+		}
+		if err := b.w.AddEdge(graph.Edge{From: id, To: FuncID(e.Func), Kind: graph.EdgeHandledBy}); err != nil {
+			return err
+		}
+		switch e.Kind {
+		case EntryWorker:
+			byName[e.Name] = id
+		case EntryJob:
+			if w, ok := byName[e.Parent]; ok {
+				if err := b.w.AddEdge(graph.Edge{From: w, To: id, Kind: graph.EdgeRuns}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // addNavigation adds navigates_to edges between routes.
@@ -450,11 +499,13 @@ func shortFuncName(name string) string {
 			break
 		}
 	}
-	dot := strings.Index(name, ".")
-	if dot < 0 {
-		return prefix + name
+	// The package path ends at the last slash before any type arguments
+	// or the receiver's closing parenthesis.
+	end := strings.IndexAny(name, "[)")
+	if end < 0 {
+		end = len(name)
 	}
-	if slash := strings.LastIndex(name[:dot], "/"); slash >= 0 {
+	if slash := strings.LastIndex(name[:end], "/"); slash >= 0 {
 		name = name[slash+1:]
 	}
 	return prefix + name

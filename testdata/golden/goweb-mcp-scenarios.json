@@ -59,5 +59,17 @@
     "tool": "search",
     "args": {"query": "GOWEB_", "kind": "sink.env"},
     "expect": ["sink.env:"]
+  },
+  {
+    "question": "What background jobs run?",
+    "tool": "list_entry_points",
+    "args": {},
+    "expect": ["worker\t(*service.MaintenanceWorker).Run\t", "job\t(*service.MaintenanceWorker).Run > token_retention\t(*service.RetentionService).CleanupTokens", "entry:job usage_retention"]
+  },
+  {
+    "question": "What does the token retention job delete?",
+    "tool": "get_flow",
+    "args": {"route": "entry:job token_retention"},
+    "expect": ["job token_retention", "table email_verification_tokens (delete", "table password_reset_tokens (delete", "table oauth_states (delete"]
   }
 ]

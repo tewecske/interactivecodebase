@@ -78,7 +78,7 @@ func TestToolsListed(t *testing.T) {
 			t.Errorf("tool %s lacks a description or schema", tool.Name)
 		}
 	}
-	want := "find_callees find_callers find_paths get_flow get_node get_route get_source get_table list_routes list_tables reanalyze routes_touching_table search"
+	want := "find_callees find_callers find_paths get_flow get_node get_route get_source get_table list_entry_points list_routes list_tables reanalyze routes_touching_table search"
 	if strings.Join(sorted(names), " ") != want {
 		t.Errorf("tools = %v", names)
 	}
@@ -93,6 +93,7 @@ func TestTools(t *testing.T) {
 	}{
 		{"list_routes", map[string]any{"access": "admin"}, []string{"2 routes", "POST /{lang}/admin/reindex\tadmin\tweb.requireAdmin > (*web.adminHandler).reindex\tinternal/web/router.go:"}},
 		{"list_routes", nil, []string{"13 routes", "GET /{lang}/weather\tpublic*"}},
+		{"list_entry_points", nil, []string{"0 entry points"}},
 		{"get_route", map[string]any{"route": "GET /{lang}/notes/{id}"}, []string{
 			"access: authenticated (authenticated via (*web.noteHandler).user)",
 			"handler: (*web.noteHandler).detail (id method:(*example.com/webapp/internal/web.noteHandler).detail)",

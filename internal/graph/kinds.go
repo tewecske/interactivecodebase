@@ -6,6 +6,7 @@ type NodeKind string
 // Node kinds. See docs/PLAN.md §3.
 const (
 	KindRoute         NodeKind = "route"          // HTTP method + pattern registered on a router
+	KindEntry         NodeKind = "entry"          // other entry point: worker, job, command, rpc, consumer
 	KindPage          NodeKind = "page"           // user-facing page (a GET route rendering a template)
 	KindHTMXCall      NodeKind = "htmx_call"      // request a page makes (hx-get/post, form action)
 	KindStaticAsset   NodeKind = "static_asset"   // CSS, JS, image served to the browser
@@ -26,7 +27,7 @@ const (
 )
 
 var nodeKinds = map[NodeKind]bool{
-	KindRoute: true, KindPage: true, KindHTMXCall: true, KindStaticAsset: true, KindTemplate: true,
+	KindRoute: true, KindEntry: true, KindPage: true, KindHTMXCall: true, KindStaticAsset: true, KindTemplate: true,
 	KindHandler: true, KindFunc: true, KindMethod: true, KindInterfaceCall: true,
 	KindSinkSQL: true, KindSinkFile: true, KindSinkHTTP: true, KindSinkSMTP: true, KindSinkExec: true, KindSinkEnv: true,
 	KindType: true, KindSQLTable: true, KindSQLColumn: true,
@@ -43,7 +44,7 @@ const (
 	EdgeNavigatesTo  EdgeKind = "navigates_to"  // page → page via link, form or redirect
 	EdgeRequests     EdgeKind = "requests"      // page → htmx_call
 	EdgeLoads        EdgeKind = "loads"         // page → static_asset
-	EdgeHandledBy    EdgeKind = "handled_by"    // route/htmx_call → handler
+	EdgeHandledBy    EdgeKind = "handled_by"    // route/htmx_call/entry → handler
 	EdgeCalls        EdgeKind = "calls"         // func → func, at a call site
 	EdgeImplements   EdgeKind = "implements"    // concrete type → interface type
 	EdgeDispatchesTo EdgeKind = "dispatches_to" // interface_call → concrete method
@@ -53,12 +54,13 @@ const (
 	EdgeHasColumn    EdgeKind = "has_column"    // sql_table → sql_column
 	EdgeFK           EdgeKind = "fk"            // sql_table → referenced sql_table
 	EdgeGuardedBy    EdgeKind = "guarded_by"    // route → auth guard func
+	EdgeRuns         EdgeKind = "runs"          // worker entry → job entry
 )
 
 var edgeKinds = map[EdgeKind]bool{
 	EdgeNavigatesTo: true, EdgeRequests: true, EdgeLoads: true, EdgeHandledBy: true, EdgeCalls: true,
 	EdgeImplements: true, EdgeDispatchesTo: true, EdgeRenders: true, EdgeUsesType: true,
-	EdgeQueries: true, EdgeHasColumn: true, EdgeFK: true, EdgeGuardedBy: true,
+	EdgeQueries: true, EdgeHasColumn: true, EdgeFK: true, EdgeGuardedBy: true, EdgeRuns: true,
 }
 
 // Valid reports whether k is a known edge kind.

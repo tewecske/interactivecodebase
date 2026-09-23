@@ -842,5 +842,79 @@
         }
       ]
     }
+  ],
+  "entries": [
+    {
+      "kind": "worker",
+      "name": "(*service.MaintenanceWorker).Run",
+      "handler": "(*github.com/tewecske/goweb/internal/service.MaintenanceWorker).Run"
+    },
+    {
+      "kind": "worker",
+      "name": "(*service.UsageQueue).Run",
+      "handler": "(*github.com/tewecske/goweb/internal/service.UsageQueue).Run",
+      "reaches": [
+        {
+          "table": "usage_events",
+          "op": "insert"
+        }
+      ]
+    },
+    {
+      "kind": "job",
+      "name": "guest_cleanup",
+      "handler": "(*github.com/tewecske/goweb/internal/service.GuestCleanupService).Cleanup",
+      "parent": "(*service.MaintenanceWorker).Run",
+      "reaches": [
+        {
+          "table": "users",
+          "op": "delete"
+        }
+      ]
+    },
+    {
+      "kind": "job",
+      "name": "token_retention",
+      "handler": "(*github.com/tewecske/goweb/internal/service.RetentionService).CleanupTokens",
+      "parent": "(*service.MaintenanceWorker).Run",
+      "reaches": [
+        {
+          "table": "email_verification_tokens",
+          "op": "delete"
+        },
+        {
+          "table": "password_reset_tokens",
+          "op": "delete"
+        },
+        {
+          "table": "oauth_states",
+          "op": "delete"
+        }
+      ]
+    },
+    {
+      "kind": "job",
+      "name": "login_attempt_retention",
+      "handler": "(*github.com/tewecske/goweb/internal/service.RetentionService).CleanupLoginAttempts",
+      "parent": "(*service.MaintenanceWorker).Run",
+      "reaches": [
+        {
+          "table": "login_attempts",
+          "op": "delete"
+        }
+      ]
+    },
+    {
+      "kind": "job",
+      "name": "usage_retention",
+      "handler": "(*github.com/tewecske/goweb/internal/service.RetentionService).CleanupUsageEvents",
+      "parent": "(*service.MaintenanceWorker).Run",
+      "reaches": [
+        {
+          "table": "usage_events",
+          "op": "delete"
+        }
+      ]
+    }
   ]
 }

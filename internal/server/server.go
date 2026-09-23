@@ -43,6 +43,7 @@ func (s *Server) routes() {
 	api := map[string]func(*http.Request) (any, error){
 		"GET /api/summary":            s.summary,
 		"GET /api/routes":             s.listRoutes,
+		"GET /api/entries":            s.listEntries,
 		"GET /api/node":               s.node,
 		"GET /api/page":               s.page,
 		"GET /api/flow":               s.flow,

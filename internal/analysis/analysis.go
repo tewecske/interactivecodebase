@@ -88,7 +88,10 @@ type Result struct {
 	Templates []*Template
 	// Navigation lists the ways to get from one route to another.
 	Navigation []Navigation
-	Stats      Stats
+	// Entries are the entry points other than routes: workers, jobs,
+	// commands, gRPC methods and message consumers.
+	Entries []EntryPoint
+	Stats   Stats
 
 	scopes    map[*ssa.Function]*methodScope
 	funcOnce  sync.Once
@@ -169,6 +172,7 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	}
 	own := moduleFunctions(r, funcs)
 	r.Routes = discoverRoutes(r, own)
+	r.Entries = discoverEntryPoints(r, own)
 	r.Sinks = detectSinks(r, own, append(slices.Clone(DefaultSinks), opts.ExtraSinks...))
 	analyzeQueries(r.Sinks, sqlparse.Postgres)
 	r.scopes = methodScopes(own)

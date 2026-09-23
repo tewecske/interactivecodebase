@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/flow"
 	"github.com/tewecske/interactivecodebase/internal/graph"
 )
@@ -16,14 +17,16 @@ const queryHelp = `Commands:
   export               the whole graph as JSON
   routes               HTTP routes with access level (* = optional auth) and
                        handler, in registration order
+  entries              other entry points: workers started from main, the
+                       jobs they run, commands, gRPC methods, consumers
   search <text>        nodes whose name, package, file, detail or ID contain text
   callees <node>       what a node calls (and interface dispatch targets)
   callers <node>       what calls a node
   paths <from> <to>    shortest call paths between two nodes
   page <route>         templates a route renders, the requests they make
                        and the static assets they load
-  flow <route>         the route's call tree down to sinks and tables,
-                       e.g. flow 'POST /{lang}/groups'
+  flow <route>         the route's (or entry point's) call tree down to
+                       sinks and tables, e.g. flow 'POST /{lang}/groups'
 
 A <node> is a node ID ("method:(*example.com/app.T).M"), the ID without its
 kind prefix ("(*example.com/app.T).M"), or search text matching one node
@@ -50,7 +53,7 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 		fs.Usage()
 		return errUsage
 	}
-	want := map[string]int{"export": 0, "routes": 0, "flow": 1, "page": 1, "search": -1, "callees": 1, "callers": 1, "paths": 2}
+	want := map[string]int{"export": 0, "routes": 0, "entries": 0, "flow": 1, "page": 1, "search": -1, "callees": 1, "callers": 1, "paths": 2}
 	n, ok := want[cmd]
 	if !ok {
 		fmt.Fprintf(fs.Output(), "unknown query command %q\n\n", cmd)
@@ -87,6 +90,15 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 			return cmp.Or(cmp.Compare(a.Pos.File, b.Pos.File), cmp.Compare(a.Pos.StartLine, b.Pos.StartLine))
 		})
 		return q.routes(nodes)
+	case "entries":
+		nodes, err := g.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindEntry}})
+		if err != nil {
+			return err
+		}
+		slices.SortStableFunc(nodes, func(a, b graph.Node) int {
+			return cmp.Or(cmp.Compare(a.Pos.File, b.Pos.File), cmp.Compare(a.Pos.StartLine, b.Pos.StartLine))
+		})
+		return q.entries(nodes)
 	case "search":
 		nodes, err := g.Search(ctx, strings.Join(cmdArgs, " "), graph.SearchOptions{})
 		if err != nil {
@@ -178,6 +190,23 @@ func (q *querier) routes(nodes []graph.Node) error {
 			access += "*"
 		}
 		fmt.Fprintf(q.e.stdout, "%s\t%s\t%s\t%s\n", n.Name, access, handler, formatPos(n.Pos))
+	}
+	return nil
+}
+
+func (q *querier) entries(nodes []graph.Node) error {
+	if q.json {
+		return writeJSON(q.e, nonNil(nodes))
+	}
+	for _, n := range nodes {
+		name := n.Name
+		if p := n.Attrs["parent"]; p != "" && n.Attrs["entryKind"] == analysis.EntryJob {
+			name = p + " > " + name
+		}
+		if n.Detail != "" {
+			name += " (" + n.Detail + ")"
+		}
+		fmt.Fprintf(q.e.stdout, "%s\t%s\t%s\t%s\n", n.Attrs["entryKind"], name, n.Attrs["handler"], formatPos(n.Pos))
 	}
 	return nil
 }

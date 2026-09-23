@@ -159,3 +159,8 @@ pre.detail.small { margin: 4px 0; font-size: 11.5px; }
 .status.error { color: #dc2626; }
 .status.error .dot { background: #dc2626; }
 @keyframes pulse { 50% { opacity: 0.3; } }
+.badge.entry-worker { color: #7c3aed; }
+.badge.entry-job { color: #0891b2; }
+.badge.entry-command { color: #ca8a04; }
+.badge.entry-rpc { color: #db2777; }
+.badge.entry-consumer { color: #16a34a; }

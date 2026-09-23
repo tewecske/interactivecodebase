@@ -37,6 +37,7 @@ func Validate(dir string, exp Expectations) ([]string, error) {
 	v.implementations(exp)
 	v.sinks(exp)
 	v.flows(exp)
+	v.entries(exp)
 	v.pages(exp)
 	return v.problems, nil
 }
@@ -168,6 +169,19 @@ func (v *validator) flows(exp Expectations) {
 			}
 			if r.Table != "" && !v.schema.tables[r.Table] {
 				v.errorf("flow %s: unknown table %s", f.Route, r.Table)
+			}
+		}
+	}
+}
+
+func (v *validator) entries(exp Expectations) {
+	for _, e := range exp.Entries {
+		for _, r := range e.Reaches {
+			if (r.Table == "") == (r.Sink == "") {
+				v.errorf("entry %s: each reach needs exactly one of table or sink", e.Key())
+			}
+			if r.Table != "" && !v.schema.tables[r.Table] {
+				v.errorf("entry %s: unknown table %s", e.Key(), r.Table)
 			}
 		}
 	}

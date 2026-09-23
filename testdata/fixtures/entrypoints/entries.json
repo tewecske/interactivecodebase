@@ -1,0 +1,57 @@
+[
+  {
+    "kind": "command",
+    "name": "entries migrate",
+    "handler": "example.com/entries.main$1",
+    "parent": "entries"
+  },
+  {
+    "kind": "command",
+    "name": "entries serve",
+    "handler": "example.com/entries.newServeCmd$1",
+    "parent": "entries"
+  },
+  {
+    "kind": "job",
+    "name": "purge-sessions",
+    "handler": "(*example.com/entries.store).purgeSessions",
+    "parent": "(*worker.Worker).Run"
+  },
+  {
+    "kind": "job",
+    "name": "reindex-notes",
+    "handler": "example.com/entries.reindex$1",
+    "parent": "(*worker.Worker).Run"
+  },
+  {
+    "kind": "worker",
+    "name": "(*worker.Worker).Run",
+    "handler": "(*example.com/entries/worker.Worker).Run"
+  },
+  {
+    "kind": "worker",
+    "name": "entries.consumeEvents",
+    "handler": "example.com/entries.consumeEvents"
+  },
+  {
+    "kind": "rpc",
+    "name": "notespb.Notes/GetNote",
+    "handler": "(*example.com/entries.notesServer).GetNote"
+  },
+  {
+    "kind": "rpc",
+    "name": "notespb.Notes/ListNotes",
+    "handler": "(*example.com/entries.notesServer).ListNotes"
+  },
+  {
+    "kind": "consumer",
+    "name": "notes.created",
+    "handler": "example.com/entries.serve$2"
+  },
+  {
+    "kind": "consumer",
+    "name": "notes.deleted",
+    "handler": "(*example.com/entries.store).onDeleted",
+    "detail": "queue indexers"
+  }
+]
