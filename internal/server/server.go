@@ -42,6 +42,7 @@ func (s *Server) routes() {
 		"GET /api/flow":             s.flow,
 		"GET /api/paths":            s.paths,
 		"GET /api/source":           s.source,
+		"GET /api/refs":             s.refs,
 		"GET /api/tables":           s.tables,
 		"GET /api/table":            s.table,
 		"GET /api/search":           s.search,
