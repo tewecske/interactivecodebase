@@ -1,0 +1,63 @@
+[
+  {
+    "question": "Which routes write to the sessions table?",
+    "tool": "routes_touching_table",
+    "args": {"table": "sessions", "op": "insert"},
+    "expect": ["5 routes", "POST /{lang}/sign-in\tinsert", "POST /{lang}/sign-up\tinsert", "POST /{lang}/guest/write\tinsert", "GET /{lang}/oauth/{?}/callback\tinsert"],
+    "reject": ["GET /{lang}/home"]
+  },
+  {
+    "question": "Is POST /{lang}/groups/{id}/rename authenticated, and where is it checked?",
+    "tool": "get_route",
+    "args": {"route": "POST /{lang}/groups/{id}/rename"},
+    "expect": ["access: authenticated (authenticated via (*http.groupHandler).authenticatedUser)", "handler: (*http.groupHandler).rename"]
+  },
+  {
+    "question": "What does creating a group write to the database?",
+    "tool": "get_flow",
+    "args": {"route": "POST /{lang}/groups"},
+    "expect": ["INSERT INTO groups", "table groups (insert", "table group_members (insert"]
+  },
+  {
+    "question": "Which tables reference users, and what happens on delete?",
+    "tool": "get_table",
+    "args": {"name": "users"},
+    "expect": ["referenced by: sessions.user_id on delete cascade", "referenced by: login_attempts.user_id on delete set null"]
+  },
+  {
+    "question": "How many admin routes are there?",
+    "tool": "list_routes",
+    "args": {"access": "admin"},
+    "expect": ["20 routes", "POST /{lang}/admin/users/{id}/delete\tadmin"]
+  },
+  {
+    "question": "Where is the session checked for admin pages?",
+    "tool": "find_callers",
+    "args": {"symbol": "SessionAuthenticator).Authenticate"},
+    "expect": ["(*github.com/tewecske/goweb/internal/adapter/http.adminHandler).authorize"]
+  },
+  {
+    "question": "How does POST /{lang}/groups reach the group_members table?",
+    "tool": "find_paths",
+    "args": {"from": "route:POST /{lang}/groups", "to": "sql_table:group_members"},
+    "expect": ["-dispatches_to-> method:(*github.com/tewecske/goweb/internal/store/postgres.GroupMembershipRepository).CreateGroupWithAdmin", "-queries-> sql_table:group_members"]
+  },
+  {
+    "question": "Where does the app create its schema_migrations table?",
+    "tool": "search",
+    "args": {"query": "schema_migrations", "kind": "sink.sql"},
+    "expect": ["sink.sql:internal/store/"]
+  },
+  {
+    "question": "What can a signed-in user do from the groups page?",
+    "tool": "get_route",
+    "args": {"route": "GET /{lang}/groups"},
+    "expect": ["POST /{lang}/groups/join\thx-post", "GET /{lang}/groups/{id}\tlink"]
+  },
+  {
+    "question": "Which environment variables does goweb read?",
+    "tool": "search",
+    "args": {"query": "GOWEB_", "kind": "sink.env"},
+    "expect": ["sink.env:"]
+  }
+]
