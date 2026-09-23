@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,6 +42,10 @@ type Options struct {
 	SBT string
 	// Projects are the sbt projects to analyze, e.g. backend; default all.
 	Projects []string
+	// Guards maps aspects and middleware by name
+	// ("app.http.RouteSupport.authenticated") to the access they enforce
+	// on the routes they wrap: authenticated, admin or guest.
+	Guards map[string]string
 }
 
 // IsProject reports whether dir holds an sbt build.
@@ -82,7 +87,7 @@ func Open(ctx context.Context, dir string, opts Options) (*analysis.Project, err
 	if err := tmp.Close(); err != nil {
 		return nil, err
 	}
-	if out, err := run(ctx, abs, extractor, extractorArgs(abs, name, mods)...); err != nil {
+	if out, err := run(ctx, abs, extractor, extractorArgs(abs, name, opts.Guards, mods)...); err != nil {
 		return nil, fmt.Errorf("scala: %s: %w%s", extractor, err, tail(out))
 	}
 	extract := time.Since(start)
@@ -197,8 +202,11 @@ func subset(a, b []string) bool {
 	return true
 }
 
-func extractorArgs(root, out string, mods []module) []string {
+func extractorArgs(root, out string, guards map[string]string, mods []module) []string {
 	args := []string{"--root", root, "-o", out}
+	for _, name := range slices.Sorted(maps.Keys(guards)) {
+		args = append(args, "--guard", name+"="+guards[name])
+	}
 	for _, m := range mods {
 		args = append(args, "--classpath", strings.Join(m.classpath, string(filepath.ListSeparator)))
 		args = append(args, m.classes...)

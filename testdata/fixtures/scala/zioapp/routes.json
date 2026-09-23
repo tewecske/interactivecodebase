@@ -1,0 +1,89 @@
+[
+  {
+    "method": "GET",
+    "pattern": "/api/notes",
+    "handler": "zioapp.backend.http.NoteRoutes.publicRoutes$1",
+    "access": "public",
+    "optionalAuth": true,
+    "middleware": [
+      "zioapp.backend.http.RouteSupport.csrf",
+      "zioapp.backend.http.RouteSupport.optionalUser"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/api/notes/{id}",
+    "handler": "zioapp.backend.http.NoteRoutes.publicRoutes$2",
+    "access": "public",
+    "optionalAuth": true,
+    "middleware": [
+      "zioapp.backend.http.RouteSupport.csrf",
+      "zioapp.backend.http.RouteSupport.optionalUser"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/api/files/{owner}/{trailing...}",
+    "handler": "zioapp.backend.http.NoteRoutes.publicRoutes$3",
+    "access": "public",
+    "optionalAuth": true,
+    "middleware": [
+      "zioapp.backend.http.RouteSupport.csrf",
+      "zioapp.backend.http.RouteSupport.optionalUser"
+    ]
+  },
+  {
+    "method": "POST",
+    "pattern": "/api/notes",
+    "handler": "zioapp.backend.http.NoteRoutes.sessionRoutes$1",
+    "access": "authenticated",
+    "middleware": [
+      "zioapp.backend.http.RouteSupport.csrf",
+      "zioapp.backend.http.RouteSupport.authenticated"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "pattern": "/api/notes/{key}",
+    "handler": "zioapp.backend.http.NoteRoutes.remove",
+    "access": "authenticated",
+    "middleware": [
+      "zioapp.backend.http.RouteSupport.csrf",
+      "zioapp.backend.http.RouteSupport.authenticated"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/api/notes/{id}/tags",
+    "handler": "zioapp.backend.http.NoteRoutes.tagsRoute$1",
+    "access": "authenticated",
+    "middleware": [
+      "zioapp.backend.http.RouteSupport.csrf",
+      "zioapp.backend.http.RouteSupport.authenticated"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/api/admin/stats",
+    "handler": "zioapp.backend.http.AdminRoutes.statsRoute$1",
+    "access": "admin",
+    "middleware": [
+      "zioapp.backend.http.RouteSupport.adminOnly"
+    ]
+  },
+  {
+    "method": "POST",
+    "pattern": "/api/notes/{id}/archive",
+    "handler": "zioapp.backend.http.AdminRoutes.archive",
+    "access": "admin",
+    "middleware": [
+      "zioapp.backend.http.RouteSupport.adminOnly"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/health",
+    "handler": "zioapp.backend.Main.health$1",
+    "access": "public"
+  }
+]

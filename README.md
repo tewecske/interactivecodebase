@@ -83,16 +83,30 @@ icb runs `sbt -batch -error -J-Xmx1500m "export Compile/fullClasspath"` in the p
 `export <p>/Compile/fullClasspath` for each of `scala.projects`), which compiles it and prints each project's
 classpath. Directories inside the project are its own classes; everything else is a library, read only to
 resolve types. A project whose classes another one already includes (a `shared` module a `backend` depends on)
-is skipped. The extractor then runs once with every project (`icb-scala --root DIR -o FILE (--classpath CP
-CLASSDIR...)...`, heap capped at 1500 MB; `ICB_SCALA_JAVA_OPTS` replaces the JVM options).
+is skipped. The extractor then runs once with every project (`icb-scala --root DIR -o FILE [--guard NAME=ROLE]...
+(--classpath CP CLASSDIR...)...`, heap capped at 1500 MB; `ICB_SCALA_JAVA_OPTS` replaces the JVM options).
 
 The graph has a `func` node per def or val of an object or package (`func:pkg.Obj.name`), a `method` node per
 def or val of a class or trait (`method:(pkg.Class).name`), `calls` edges (lambdas and local defs count towards
 the enclosing def), calls of abstract methods as `interface_call` nodes that `dispatches_to` the implementations
 (class-hierarchy analysis), and `type` nodes (`class`, `trait`, `object`, `enum`) with `implements` and
 `uses_type` edges for the types diagram. Calls into libraries, compiler-generated members and inlined code
-(the call sites of `inline def`s) are left out. Routes, SQL and the frontend are not detected yet, and `serve -watch` does
-not react to Scala sources yet. An sbt shell already open in the project may conflict with icb's batch sbt run.
+(the call sites of `inline def`s) are left out.
+
+zio-http routes become `route` nodes like Go's. A small evaluator reads the `Routes` and `Route` vals and defs:
+`Method.GET / "api" / notes / long("id") -> handler(...)` (string literals and vals; `string`/`long`/`int`/`uuid`
+parameters become `{id}`, `trailing` `{trailing...}`, anything it cannot evaluate `{?}`), `Routes(...)`, `++`,
+`@@` aspects, and `Endpoint`s (also those defined in a shared module) with `implement*`, including `Endpoint`s
+built from method and path templates such as gathedge's `ApiPath1[Long](GET, "/api/words/{id}")`. The served
+routes are those of the `Routes` values no other one includes. Aspects applied there are `muxMiddleware`, those
+applied inside are the route's `middleware`, both outermost first. A handler that only calls a def is that def;
+any other handler expression gets its own node named after its member, numbered in source order
+(`func:app.NoteRoutes.routes$1`), with the calls it makes (the member keeps the rest). Access comes from the
+aspects: `admin*` means admin, `authenticat*`/`requireAuth`/`requireUser` authenticated, `optionalUser` a public
+route that consults the session; `auth.guards` in `icb.yaml` names others by their Scala name
+(`app.http.RouteSupport.staffOnly`, or a suffix such as `RouteSupport.staffOnly`) with their role. SQL and the
+frontend are not detected yet, and `serve -watch` does not react to Scala sources yet. An sbt shell already open
+in the project may conflict with icb's batch sbt run.
 
 ## JSON API
 
@@ -166,8 +180,9 @@ make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_G
   tables it should find in `sinks.json`.
 - `testdata/fixtures/entrypoints/`: commands, a worker with a job table, gRPC and NATS (stub modules via `replace`),
   with its golden `entries.json`.
-- `testdata/fixtures/scala/zioapp/`: a small sbt Scala 3 app shaped like gathedge (zio-http routes, a service
-  trait and implementation, a Quill repository, a shared module), for the Scala extractor.
+- `testdata/fixtures/scala/zioapp/`: a small sbt Scala 3 app shaped like gathedge (zio-http routes with aspects,
+  shared `Endpoint`s and path templates, a service trait and implementation, a Quill repository, a shared
+  module), for the Scala extractor; `routes.json` holds its expected routes.
 - `testdata/golden/goweb.json`: expectations for [goweb](https://github.com/tewecske/goweb) at a pinned commit.
 
 `internal/fixture` loads both and, until the analyzers exist, checks that every function, type, table, foreign key, template and asset the expectations name really exists.

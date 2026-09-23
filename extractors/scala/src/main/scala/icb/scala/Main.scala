@@ -11,18 +11,23 @@ import scala.tasty.inspector.TastyInspector
   */
 final case class Module(classpath: List[String], classDirs: List[String])
 
-final case class Args(root: Path, out: Option[Path], modules: List[Module])
+/** guards maps the name of an aspect or middleware ("app.http.Auth.required")
+  * to the access it enforces, as icb.yaml's auth.guards does.
+  */
+final case class Args(root: Path, out: Option[Path], modules: List[Module], guards: Map[String, String] = Map.empty)
 
-/** icb-scala --root DIR [-o FILE] (--classpath CP CLASSDIR...)...
+/** icb-scala --root DIR [-o FILE] [--guard NAME=ROLE]... (--classpath CP CLASSDIR...)...
   *
   * Reads the .tasty files under each CLASSDIR, resolving what they refer to
   * against CP, and writes the code graph as JSON to FILE (default stdout).
   * Each --classpath starts a module: an sbt project's own class directories
-  * with its classpath. Positions are relative to DIR.
+  * with its classpath. Positions are relative to DIR. Each --guard names an
+  * aspect enforcing ROLE (authenticated, admin or guest) on the routes it
+  * wraps.
   */
 object Main {
 
-  val usage: String = "usage: icb-scala --root DIR [-o FILE] (--classpath CP CLASSDIR...)..."
+  val usage: String = "usage: icb-scala --root DIR [-o FILE] [--guard NAME=ROLE]... (--classpath CP CLASSDIR...)..."
 
   def main(argv: Array[String]): Unit = {
     parse(argv.toList) match {
@@ -49,6 +54,12 @@ object Main {
       case Nil                          => Right(acc.copy(modules = acc.modules.reverse.map(u => u.copy(classDirs = u.classDirs.reverse))))
       case "--root" :: dir :: tail      => loop(tail, acc.copy(root = Paths.get(dir)))
       case ("-o" | "--out") :: f :: tail => loop(tail, acc.copy(out = Some(Paths.get(f))))
+      case "--guard" :: g :: tail =>
+        g.split("=", 2) match {
+          case Array(name, role) if name.nonEmpty && Set("authenticated", "admin", "guest")(role) =>
+            loop(tail, acc.copy(guards = acc.guards + (name -> role)))
+          case _ => Left(s"--guard $g: want NAME=ROLE, ROLE one of authenticated, admin, guest")
+        }
       case "--classpath" :: cp :: tail =>
         val entries = cp.split(java.io.File.pathSeparator).toList.filter(_.nonEmpty)
         loop(tail, acc.copy(modules = Module(entries, Nil) :: acc.modules))
@@ -71,7 +82,7 @@ object Main {
     for (u <- args.modules if u.classDirs.nonEmpty) {
       val tasty = u.classDirs.flatMap(tastyFiles)
       if (tasty.nonEmpty) {
-        val ok = TastyInspector.inspectAllTastyFiles(tasty, Nil, u.classDirs ++ u.classpath)(new Extractor(root, graph))
+        val ok = TastyInspector.inspectAllTastyFiles(tasty, Nil, u.classDirs ++ u.classpath)(new Extractor(root, graph, args.guards))
         if (!ok) throw new RuntimeException(s"reading the TASTy in ${u.classDirs.mkString(", ")} failed")
       }
     }

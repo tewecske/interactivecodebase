@@ -24,27 +24,34 @@ import scala.tasty.inspector.*
   *     and from a class to its fields' types.
   *
   * Only the inspected classes become nodes: calls into libraries are left
-  * out.
+  * out. Routes adds the zio-http routes (see [[Routing]]).
   */
-final class Extractor(root: Path, graph: Graph) extends Inspector {
+final class Extractor(root: Path, graph: Graph, guards: Map[String, String] = Map.empty) extends Inspector {
   def inspect(using q: Quotes)(tastys: List[Tasty[q.type]]): Unit = {
-    val walk = new Walk(root, graph)
+    val walk = new Walk(root, graph, guards)
     walk.run(tastys.map(_.ast.asInstanceOf[walk.q.reflect.Tree]))
   }
 }
 
-private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
+private final class Walk(root: Path, val graph: Graph, val guards: Map[String, String])(using val q: Quotes) extends Routing {
   import q.reflect.*
 
   // Named classes, traits and objects of the inspected TASTy.
-  private val own = mutable.LinkedHashSet.empty[Symbol]
-  private val classDefs = mutable.ListBuffer.empty[ClassDef]
+  private[scala] val own = mutable.LinkedHashSet.empty[Symbol]
+  private[scala] val classDefs = mutable.ListBuffer.empty[ClassDef]
   // Abstract methods called, by interface_call node ID.
   private val abstractCalls = mutable.LinkedHashMap.empty[String, Symbol]
 
+  // The right-hand side of every def and val of the inspected classes.
+  private[scala] val members = mutable.HashMap.empty[Symbol, Tree]
+
   def run(trees: List[Tree]): Unit = {
     trees.foreach(collect)
+    // Routes first: their handlers become nodes of their own, which the
+    // members they are written in leave out.
+    findRoutes()
     classDefs.foreach(addClass)
+    addRoutes()
     addDispatch()
   }
 
@@ -55,6 +62,8 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
       classDefs += cd
       cd.body.foreach {
         case nested: ClassDef => collect(nested)
+        case d: DefDef        => d.rhs.foreach(members(d.symbol) = _)
+        case v: ValDef        => v.rhs.foreach(members(v.symbol) = _)
         case _                =>
       }
     case _ =>
@@ -89,21 +98,21 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
     }
   }
 
-  private def isMemberDef(sym: Symbol): Boolean = {
+  private[scala] def isMemberDef(sym: Symbol): Boolean = {
     !sym.isClassConstructor && !sym.flags.is(Flags.Deferred) && !skipped(sym)
   }
 
-  private def isMemberVal(sym: Symbol): Boolean = {
+  private[scala] def isMemberVal(sym: Symbol): Boolean = {
     !sym.flags.is(Flags.ParamAccessor) && !sym.flags.is(Flags.Module) && !sym.flags.is(Flags.Deferred) && !skipped(sym)
   }
 
   // Compiler-generated members: case class methods, derived givens
   // ("derived$JsonCodec"), export forwarders.
-  private def skipped(sym: Symbol): Boolean = {
+  private[scala] def skipped(sym: Symbol): Boolean = {
     sym.flags.is(Flags.Synthetic) || sym.flags.is(Flags.Artifact) || sym.flags.is(Flags.Exported) || sym.name.contains("$")
   }
 
-  private def addFunc(sym: Symbol, p: Position): Unit = {
+  private[scala] def addFunc(sym: Symbol, p: Position): Unit = {
     val id = funcID(sym)
     graph.addNode(Node(id, funcKind(sym), funcName(sym), pkgName(sym), signature(sym), pos(p, withEnd = true)))
     val receiver = sym.owner
@@ -124,15 +133,19 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
     graph.addNode(Node(typeID(cls), "type", typeName(cls), pkgName(cls), detail, cls.pos.flatMap(pos(_, withEnd = false))))
   }
 
-  /** Adds calls edges from the node from to what tree refers to. */
-  private def addCalls(from: String, tree: Tree, owner: Symbol): Unit = {
+  /** Adds calls edges from the node from to what tree refers to, leaving
+    * out route handlers inside it, which are nodes of their own.
+    */
+  private[scala] def addCalls(from: String, tree: Tree, owner: Symbol): Unit = {
     val traverser = new TreeTraverser {
       override def traverseTree(t: Tree)(o: Symbol): Unit = {
-        t match {
-          case ref: Ref => addCall(from, ref)
-          case _        =>
+        if ((t eq tree) || !isHandler(t)) {
+          t match {
+            case ref: Ref => addCall(from, ref)
+            case _        =>
+          }
+          super.traverseTree(t)(o)
         }
-        super.traverseTree(t)(o)
       }
     }
     traverser.traverseTree(tree)(owner)
@@ -179,9 +192,9 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
 
   // Naming.
 
-  private def funcKind(sym: Symbol): String = if (sym.owner.flags.is(Flags.Module)) "func" else "method"
+  private[scala] def funcKind(sym: Symbol): String = if (sym.owner.flags.is(Flags.Module)) "func" else "method"
 
-  private def funcID(sym: Symbol): String = {
+  private[scala] def funcID(sym: Symbol): String = {
     val owner = sym.owner
     val name = sym.name + overloadSuffix(sym)
     if (isPackageObject(owner)) s"func:${qualify(pkgName(owner), name)}"
@@ -189,7 +202,7 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
     else s"method:(${qualified(owner)}).$name"
   }
 
-  private def funcName(sym: Symbol): String = {
+  private[scala] def funcName(sym: Symbol): String = {
     val owner = sym.owner
     if (isPackageObject(owner)) sym.name else s"${typeName(owner)}.${sym.name}"
   }
@@ -210,12 +223,12 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
   }
 
   /** The package and the enclosing types: "com.example.Outer.Inner". */
-  private def qualified(cls: Symbol): String = qualify(pkgName(cls), typeName(cls))
+  private[scala] def qualified(cls: Symbol): String = qualify(pkgName(cls), typeName(cls))
 
   private def qualify(pkg: String, name: String): String = if (pkg.isEmpty) name else s"$pkg.$name"
 
   /** The name within the package: "Outer.Inner". */
-  private def typeName(cls: Symbol): String = {
+  private[scala] def typeName(cls: Symbol): String = {
     Iterator
       .iterate(cls)(_.maybeOwner)
       .takeWhile(s => !s.isNoSymbol && !s.isPackageDef)
@@ -226,7 +239,7 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
       .mkString(".")
   }
 
-  private def pkgName(sym: Symbol): String = {
+  private[scala] def pkgName(sym: Symbol): String = {
     val pkg = Iterator.iterate(sym)(_.maybeOwner).find(s => s.isNoSymbol || s.isPackageDef).get
     if (pkg.isNoSymbol || pkg.fullName == "<empty>" || pkg.fullName == "<root>") "" else pkg.fullName
   }
@@ -269,7 +282,7 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
   /** A def's signature as Scala writes it, "[T](id: Long): Task[T]", or a
     * val's type.
     */
-  private def signature(sym: Symbol): String = {
+  private[scala] def signature(sym: Symbol): String = {
     def loop(t: TypeRepr): String = t match {
       case PolyType(names, _, res) => names.mkString("[", ", ", "]") + loop(res)
       case mt @ MethodType(names, types, res) =>
@@ -287,12 +300,12 @@ private final class Walk(root: Path, graph: Graph)(using val q: Quotes) {
   }
 
   // Symbol.info is experimental; the widened reference is the same type.
-  private def info(sym: Symbol): TypeRepr = sym.termRef.widen
+  private[scala] def info(sym: Symbol): TypeRepr = sym.termRef.widen
 
-  private def show(t: TypeRepr): String = t.show(using Printer.TypeReprShortCode)
+  private[scala] def show(t: TypeRepr): String = t.show(using Printer.TypeReprShortCode)
 
   /** p relative to the project root, 1-based. */
-  private def pos(p: Position, withEnd: Boolean): Option[Pos] = {
+  private[scala] def pos(p: Position, withEnd: Boolean): Option[Pos] = {
     try {
       val file = p.sourceFile.getJPath.map(_.toString).getOrElse(p.sourceFile.path)
       if (file.isEmpty) None

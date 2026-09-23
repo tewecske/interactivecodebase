@@ -2,26 +2,46 @@ package zioapp.backend.http
 
 import zio.*
 import zio.http.*
+import zio.http.codec.PathCodec
 import zio.json.*
 import zioapp.backend.service.NoteService
 import zioapp.shared.{CreateNote, NoteError}
+import zioapp.shared.api.NoteEndpoints
 
-/** The notes API. */
+/** The notes API: reading is public, writing needs a session. */
 object NoteRoutes {
 
-  val routes: Routes[NoteService, Nothing] = {
+  private val notes = "notes"
+
+  private val base = Method.GET / "api" / notes
+
+  private val publicRoutes: Routes[NoteService, Response] = {
     Routes(
-      Method.GET / "api" / "notes" -> handler { (_: Request) =>
+      base -> handler { (_: Request) =>
         NoteService.list.map(notes => Response.json(notes.toJson)).orDie
       },
-      Method.GET / "api" / "notes" / long("id") -> handler { (id: Long, _: Request) =>
+      Method.GET / "api" / notes / long("id") -> handler { (id: Long, _: Request) =>
         ZIO.serviceWithZIO[NoteService](_.find(id)).map(toResponse).orDie
       },
-      Method.POST / "api" / "notes" -> handler { (req: Request) =>
+      Method.GET / "api" / "files" / string("owner") / trailing -> Handler.notFound,
+    ) @@ RouteSupport.optionalUser
+  }
+
+  private val tagsRoute = {
+    NoteEndpoints.tags.implementHandler(handler((id: Long) => ZIO.succeed(List(s"note-$id"))))
+  }
+
+  private val sessionRoutes: Routes[NoteService, Response] = {
+    Routes(
+      Method.POST / "api" / notes -> handler { (req: Request) =>
         create(req).orDie
       },
-    )
+      Method.DELETE / "api" / notes / PathCodec.uuid("key") -> handler(remove),
+      tagsRoute,
+    ) @@ RouteSupport.authenticated
   }
+
+  val routes: Routes[NoteService, Response] = (publicRoutes ++ sessionRoutes) @@ RouteSupport.csrf
 
   private def create(req: Request): ZIO[NoteService, Throwable, Response] = {
     for {
@@ -34,6 +54,8 @@ object NoteRoutes {
       case Left(NoteError.NotFound(_)) => Response.notFound
     }
   }
+
+  private def remove(key: java.util.UUID, req: Request): UIO[Response] = ZIO.succeed(Response.ok)
 
   private def toResponse(note: Option[zioapp.shared.Note]): Response = {
     note.fold(Response.notFound)(n => Response.json(n.toJson))
