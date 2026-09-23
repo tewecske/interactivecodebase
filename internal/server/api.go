@@ -12,6 +12,7 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/flow"
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/views"
 )
 
 // Summary describes the analyzed module.
@@ -275,10 +276,7 @@ func (s *Server) tables(r *http.Request) (any, error) {
 }
 
 // TableRoute is a route whose flow touches a table.
-type TableRoute struct {
-	Route string `json:"route"`
-	Op    string `json:"op"`
-}
+type TableRoute = views.TableRoute
 
 // TableDetail is a table with its columns, relations and users.
 type TableDetail struct {
@@ -332,37 +330,10 @@ func (s *Server) table(r *http.Request) (any, error) {
 func (s *Server) tableRoutes(r *http.Request) (map[string][]TableRoute, error) {
 	// Computed once for all requests, so not tied to this request's context.
 	ctx := context.WithoutCancel(r.Context())
-	s.tablesOnce.Do(func() {
-		s.routesByTbl = map[string][]TableRoute{}
-		nodes, err := s.r.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
-		if err != nil {
-			s.tablesErr = err
-			return
-		}
-		for _, n := range sortByPos(nodes) {
-			tree, err := flow.Build(ctx, s.r.Graph, n.ID, flow.Options{})
-			if err != nil {
-				s.tablesErr = err
-				return
-			}
-			seen := map[[2]string]bool{} // table, op
-			flow.Walk(tree, func(st *flow.Step, _ int) {
-				if st.Node.Kind != graph.KindSQLTable {
-					return
-				}
-				op := st.Edge.Attrs["op"]
-				if key := [2]string{st.Node.Name, op}; !seen[key] {
-					seen[key] = true
-					s.routesByTbl[st.Node.Name] = append(s.routesByTbl[st.Node.Name], TableRoute{Route: n.Name, Op: op})
-				}
-			})
-		}
-	})
+	s.tablesOnce.Do(func() { s.routesByTbl, s.tablesErr = views.TableRoutes(ctx, s.r.Graph) })
 	return s.routesByTbl, s.tablesErr
 }
 
-// search finds nodes matching q, optionally only of the given kinds
-// (comma list). Without q it lists the nodes of those kinds.
 func (s *Server) search(r *http.Request) (any, error) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	limit, err := intParam(r, "limit", 50)

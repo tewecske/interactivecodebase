@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"go/types"
 	"net/http"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/flow"
 	"github.com/tewecske/interactivecodebase/internal/graph"
 	"github.com/tewecske/interactivecodebase/internal/mermaid"
+	"github.com/tewecske/interactivecodebase/internal/views"
 )
 
 // sitemapDiagram draws routes grouped by access, with navigation edges.
@@ -59,72 +61,16 @@ func (s *Server) flowDiagram(r *http.Request) (any, error) {
 // erDiagram draws a table and the tables within depth foreign keys of it
 // (default 1), or the whole schema when no table is given.
 func (s *Server) erDiagram(r *http.Request) (any, error) {
-	ctx := r.Context()
 	depth, err := intParam(r, "depth", 1)
 	if err != nil {
 		return nil, err
 	}
-	all, err := s.r.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindSQLTable}})
-	if err != nil {
-		return nil, err
+	name := r.URL.Query().Get("table")
+	d, err := views.ER(r.Context(), s.r.Graph, name, depth)
+	if errors.Is(err, graph.ErrNotFound) {
+		return nil, notFound("no table " + name)
 	}
-	include := map[string]bool{}
-	if name := r.URL.Query().Get("table"); name != "" {
-		start := analysis.TableID(name)
-		if _, err := s.r.Graph.Node(ctx, start); err != nil {
-			return nil, notFound("no table " + name)
-		}
-		include[start] = true
-		frontier := []string{start}
-		for range depth {
-			var next []string
-			for _, id := range frontier {
-				for _, dir := range []graph.Direction{graph.Out, graph.In} {
-					nbs, err := s.r.Graph.Neighbors(ctx, id, dir, graph.EdgeFK)
-					if err != nil {
-						return nil, err
-					}
-					for _, nb := range nbs {
-						if !include[nb.Node.ID] {
-							include[nb.Node.ID] = true
-							next = append(next, nb.Node.ID)
-						}
-					}
-				}
-			}
-			frontier = next
-		}
-	} else {
-		for _, t := range all {
-			include[t.ID] = true
-		}
-	}
-	var tables []mermaid.Table
-	var fks []graph.Edge
-	for _, t := range all {
-		if !include[t.ID] {
-			continue
-		}
-		cols, err := s.r.Graph.Neighbors(ctx, t.ID, graph.Out, graph.EdgeHasColumn)
-		if err != nil {
-			return nil, err
-		}
-		mt := mermaid.Table{Node: t}
-		for _, c := range cols {
-			mt.Columns = append(mt.Columns, c.Node)
-		}
-		tables = append(tables, mt)
-		out, err := s.r.Graph.Neighbors(ctx, t.ID, graph.Out, graph.EdgeFK)
-		if err != nil {
-			return nil, err
-		}
-		for _, nb := range out {
-			if include[nb.Node.ID] {
-				fks = append(fks, nb.Edge)
-			}
-		}
-	}
-	return mermaid.ER(tables, fks), nil
+	return d, err
 }
 
 // typesDiagram draws the types around a node: for a function, its

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/fixture"
 )
@@ -89,7 +91,7 @@ func TestSubcommandArgumentValidation(t *testing.T) {
 		{"analyze unknown flag", []string{"analyze", "-nope", dir}, ExitUsage, "flag provided but not defined"},
 		{"analyze nonexistent dir", []string{"analyze", dir + "/missing"}, ExitError, "no such file or directory"},
 		{"serve stub", []string{"serve", "-addr", ":0", "-watch", dir}, ExitError, "not implemented yet"},
-		{"mcp stub", []string{"mcp", dir}, ExitError, "not implemented yet"},
+		{"mcp not a module", []string{"mcp", dir}, ExitError, "is not inside a Go module"},
 		{"query missing command", []string{"query", dir}, ExitUsage, "expected at least 2 argument(s), got 1"},
 		{"query unknown command", []string{"query", dir, "bogus"}, ExitUsage, `unknown query command "bogus"`},
 		{"query wrong arity", []string{"query", dir, "paths", "a"}, ExitUsage, "wrong number of arguments for paths"},
@@ -263,7 +265,7 @@ func TestServe(t *testing.T) {
 			t.Fatalf("server did not start; stdout %q stderr %q", stdout.String(), stderr.String())
 		}
 		if _, after, ok := strings.Cut(stdout.String(), "serving "); ok {
-			base = strings.TrimSpace(after)
+			base = strings.Fields(after)[0]
 			break
 		}
 		select {
@@ -281,6 +283,18 @@ func TestServe(t *testing.T) {
 	if resp.StatusCode != 200 || !strings.Contains(string(body), `"module": "example.com/webapp"`) {
 		t.Errorf("summary %d %s", resp.StatusCode, body)
 	}
+	// The same server speaks MCP over streamable HTTP at /mcp.
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(t.Context(),
+		&mcp.StreamableClientTransport{Endpoint: base + "/mcp", MaxRetries: -1}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: "list_tables"})
+	if err != nil || res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, "4 tables") {
+		t.Errorf("MCP over HTTP: %v %+v", err, res)
+	}
+	_ = cs.Close()
+
 	cancel()
 	select {
 	case code := <-done:
@@ -289,5 +303,40 @@ func TestServe(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("serve did not shut down")
+	}
+}
+
+func TestMCPCommand(t *testing.T) {
+	serverT, clientT := mcp.NewInMemoryTransports()
+	saved := mcpTransport
+	mcpTransport = func() mcp.Transport { return serverT }
+	t.Cleanup(func() { mcpTransport = saved })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var stdout, stderr syncBuffer
+	done := make(chan int, 1)
+	go func() { done <- Run(ctx, []string{"mcp", fixture.WebappDir()}, &stdout, &stderr) }()
+
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, clientT, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "list_routes", Arguments: map[string]any{"access": "admin"}})
+	if err != nil || res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, "2 routes") {
+		t.Errorf("list_routes: %v %+v", err, res)
+	}
+	_ = cs.Close()
+	cancel()
+	select {
+	case code := <-done:
+		if code != ExitOK {
+			t.Errorf("exit code %d: %s", code, stderr.String())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("icb mcp did not stop")
+	}
+	if stdout.String() != "" {
+		t.Errorf("icb mcp wrote to stdout outside the protocol: %q", stdout.String())
 	}
 }
