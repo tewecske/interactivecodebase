@@ -9,6 +9,10 @@ object NotePaths {
 
   import ApiMethod.*
 
+  val list = ApiPath0(GET, "/api/notes")
+  val get = ApiPath1[Long](GET, "/api/notes/{noteId}")
+  // No route serves it.
+  val search = ApiPath0(GET, "/api/notes/search")
   val stats = ApiPath0(GET, "/api/admin/stats")
   val archive = ApiPath1[Long](POST, "/api/notes/{id}/archive")
 }

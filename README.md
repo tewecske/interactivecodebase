@@ -119,8 +119,28 @@ the columns. It writes that as SQL (`SELECT t0.id, t1.email FROM sessions t0, us
 email = $1 WHERE t0.id = $2`) for icb to parse. On import icb loads the migrations (`migrations` in `icb.yaml`,
 else the usual directories and Flyway's `src/main/resources/db/migration` of each module, or the PostgreSQL one of
 its per-database subdirectories, applied in version order) and links each SQL sink to the tables and columns it
-touches, as for Go. The frontend is not detected yet, and `serve -watch` does not react to Scala sources yet. An
-sbt shell already open in the project may conflict with icb's batch sbt run.
+touches, as for Go.
+
+A Laminar frontend (a Scala.js project, read with its own classpath) routed by Waypoint adds `page` nodes: the
+backend serves it as a single-page app, so its pages are not server routes. Each path of a Waypoint route
+(`Route.static(SignIn, root / "sign-in", basePath)`, `Route(encode, decode, pattern = root / "g" / segment[String],
+basePath)`, `Route.withQuery` ...) is a page, `page:/{basePath}/g/{slug}`: a path parameter is named after the page
+class's field of its type, a base path known only at run time after the value holding it, and `? params` queries
+are left out. A page has the attributes of a GET route (`method`, `pattern`, `handler`, `access` public) plus
+`page`, its page classes, and is `handled_by` the views rendering it: the defs returning a Laminar element called
+from a `case` matching the page class or from the renderer of a SplitRender `collect*` for it. The requests its
+views make, directly or through what they call, are `htmx_call` nodes like Go's (`trigger` fetch, `via` the def
+making it) that the page `requests`: every use of a shared path template (such as gathedge's `ApiPath`) or zio-http
+`Endpoint`, so the method and path are those of the backend route exactly, which it is `handled_by` (a route
+differing only in the names of path parameters counts; a request no route serves has no `target`).
+`router.navigateTo(page)` and `relativeUrlForPage` (trigger link), `pushState` (navigate) and `replaceState`
+(redirect) are `navigates_to` edges to the pages of the page's class, found by its type; a def that only passes its
+page parameter on, such as a navigation link helper, is followed to its callers. A route whose `matchEncode` is
+`PartialFunction.empty` only decodes URLs and is never a link target. The site map draws pages with the routes, and
+the route view (`/api/page?route=page:/...`) shows a page's views, requests and navigation.
+
+`serve -watch` does not react to Scala sources yet. An sbt shell already open in the project may conflict with
+icb's batch sbt run.
 
 ## JSON API
 
@@ -130,10 +150,10 @@ or the git HEAD change) and serves:
 | Endpoint | |
 |---|---|
 | `/api/summary` | module, counts, timings |
-| `/api/routes?access=&method=&q=` | routes with access level, handler, position |
+| `/api/routes?access=&method=&q=&pages=` | routes with access level, handler, position; `pages=1` adds frontend pages |
 | `/api/entries` | other entry points: workers, jobs, commands, gRPC methods, consumers |
 | `/api/node?id=` | a node with its incoming and outgoing edges |
-| `/api/page?route=` | templates, requests, assets and navigation of a page |
+| `/api/page?route=` | templates, requests, assets and navigation of a route's page or a frontend page (`page:` ID) |
 | `/api/flow?route=&method=&prune=` | a route's call tree down to sinks and tables |
 | `/api/paths?from=&to=` | call paths between two nodes |
 | `/api/source?file=&start=&end=` | source lines (confined to the module) |
@@ -196,8 +216,9 @@ make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_G
   with its golden `entries.json`.
 - `testdata/fixtures/scala/zioapp/`: a small sbt Scala 3 app shaped like gathedge (zio-http routes with aspects,
   shared `Endpoint`s and path templates, a service trait and implementation, a Quill repository with a Flyway
-  migration, env and HTTP calls, a shared module), for the Scala extractor; `routes.json` holds its expected
-  routes and `sinks.json` its sinks with the tables they touch.
+  migration, env and HTTP calls, a shared module cross-built for Scala.js, a Laminar and Waypoint frontend), for
+  the Scala extractor; `routes.json` holds its expected routes, `sinks.json` its sinks with the tables they touch
+  and `pages.json` its frontend pages with their views, requests and navigation.
 - `testdata/golden/goweb.json`: expectations for [goweb](https://github.com/tewecske/goweb) at a pinned commit.
 
 `internal/fixture` loads both and, until the analyzers exist, checks that every function, type, table, foreign key, template and asset the expectations name really exists.

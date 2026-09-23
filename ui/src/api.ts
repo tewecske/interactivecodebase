@@ -148,7 +148,7 @@ async function get<T>(path: string, params: Record<string, string | undefined> =
 
 export const api = {
   summary: () => get<Summary>("summary"),
-  routes: (filter: { access?: string; method?: string; q?: string } = {}) => get<RouteInfo[]>("routes", filter),
+  routes: (filter: { access?: string; method?: string; q?: string; pages?: string } = {}) => get<RouteInfo[]>("routes", filter),
   entries: () => get<GraphNode[]>("entries"),
   node: (id: string) => get<NodeDetail>("node", { id }),
   page: (route: string) => get<PageDetail>("page", { route }),

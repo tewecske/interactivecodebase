@@ -86,7 +86,27 @@ object Main {
         if (!ok) throw new RuntimeException(s"reading the TASTy in ${u.classDirs.mkString(", ")} failed")
       }
     }
+    resolveRequests(graph)
     graph
+  }
+
+  /** Links the requests a frontend makes (see [[Frontend]]) to the routes
+    * of the backend, another module: the route with the request's method
+    * and path, else the only one differing in the names of the path
+    * parameters. A request no route serves keeps no target.
+    */
+  def resolveRequests(graph: Graph): Unit = {
+    val routes = graph.allNodes.filter(_.kind == "route").map(_.id.stripPrefix("route:")).toSet
+    def unnamed(key: String) = key.replaceAll("\\{[^}]*\\}", "{}")
+    val byShape = routes.toList.groupBy(unnamed)
+    for (n <- graph.allNodes if n.kind == "htmx_call"; key <- n.attrs.get("target") if !routes(key)) {
+      byShape.get(unnamed(key)) match {
+        case Some(List(route)) =>
+          graph.replaceNode(n.copy(name = route, attrs = n.attrs + ("target" -> route)))
+          graph.addEdge(Edge(n.id, s"route:$route", "handled_by"))
+        case _ => graph.replaceNode(n.copy(attrs = n.attrs - "target"))
+      }
+    }
   }
 
   /** The .tasty files under dir, sorted. */

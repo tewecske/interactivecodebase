@@ -67,7 +67,7 @@ export function SiteMap({ params, theme }: { params: Record<string, string>; the
         <RouteTable getOnly={getOnly} access={access} text={text} />
       )}
       <p className="muted legend">
-        Arrows: → link · ⇒ form submission · ⇢ redirect. Click a route to open its page. Drag to pan, Ctrl/⌘ + wheel to zoom.
+        Arrows: → link or navigation · ⇒ form submission · ⇢ redirect. Click a route or frontend page to open it. Drag to pan, Ctrl/⌘ + wheel to zoom.
       </p>
     </section>
   );
@@ -84,7 +84,7 @@ function Diagram({ getOnly, access, text, theme }: { getOnly: boolean; access: s
         Object.keys(d.ids).length === 0 ? (
           <p className="muted">No routes match.</p>
         ) : (
-          <MermaidView diagram={d} theme={theme} onNodeClick={(id) => navigate("route", { id: id.slice("route:".length) })} />
+          <MermaidView diagram={d} theme={theme} onNodeClick={(id) => navigate("route", { id: routeKey(id) })} />
         )
       }
     </Loaded>
@@ -92,7 +92,7 @@ function Diagram({ getOnly, access, text, theme }: { getOnly: boolean; access: s
 }
 
 function RouteTable({ getOnly, access, text }: { getOnly: boolean; access: string[]; text: string }) {
-  const routes = useAsync(() => api.routes(), []);
+  const routes = useAsync(() => api.routes({ pages: "1" }), []);
   return (
     <Loaded state={routes}>
       {(all) => {
@@ -118,7 +118,7 @@ function RouteTable({ getOnly, access, text }: { getOnly: boolean; access: strin
                 <tr key={r.id}>
                   <td>{r.method}</td>
                   <td>
-                    <a href={href("route", { id: `${r.method} ${r.pattern}` })}>{r.pattern}</a>
+                    <a href={href("route", { id: routeKey(r.id) })}>{r.pattern}</a>
                     {r.page && <span className="badge kind">page</span>}
                     {r.conditional && <span className="badge kind" title="depends on runtime configuration">conditional</span>}
                   </td>
@@ -140,6 +140,12 @@ function RouteTable({ getOnly, access, text }: { getOnly: boolean; access: strin
       }}
     </Loaded>
   );
+}
+
+// routeKey is what the route view takes for a route or page node ID: a
+// route's "METHOD pattern", a frontend page's own ID.
+export function routeKey(id: string): string {
+  return id.startsWith("route:") ? id.slice("route:".length) : id;
 }
 
 // shortFunc trims the package path from a go/ssa function name.

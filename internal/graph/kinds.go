@@ -7,8 +7,8 @@ type NodeKind string
 const (
 	KindRoute         NodeKind = "route"          // HTTP method + pattern registered on a router
 	KindEntry         NodeKind = "entry"          // other entry point: worker, job, command, rpc, consumer
-	KindPage          NodeKind = "page"           // user-facing page (a GET route rendering a template)
-	KindHTMXCall      NodeKind = "htmx_call"      // request a page makes (hx-get/post, form action)
+	KindPage          NodeKind = "page"           // frontend page of a single-page app (a Waypoint route)
+	KindHTMXCall      NodeKind = "htmx_call"      // request a page makes (hx-get/post, form action, fetch)
 	KindStaticAsset   NodeKind = "static_asset"   // CSS, JS, image served to the browser
 	KindTemplate      NodeKind = "template"       // html/template file or named template
 	KindHandler       NodeKind = "handler"        // function registered as an HTTP handler

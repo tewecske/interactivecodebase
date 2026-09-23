@@ -1,0 +1,105 @@
+[
+  {
+    "pattern": "/app/admin",
+    "page": "zioapp.frontend.Page.Admin",
+    "views": [
+      "func:zioapp.frontend.pages.AdminPage.render"
+    ],
+    "requests": [
+      {
+        "unresolved": "GET /api/notes/search",
+        "trigger": "fetch",
+        "via": "zioapp.frontend.api.NoteApi.search"
+      },
+      {
+        "route": "GET /api/admin/stats",
+        "trigger": "fetch",
+        "via": "zioapp.frontend.api.NoteApi.stats"
+      }
+    ],
+    "navigatesTo": [
+      {
+        "to": "page:/app/admin",
+        "trigger": "link",
+        "via": "zioapp.frontend.pages.Shell.apply"
+      },
+      {
+        "to": "page:/app/notes",
+        "trigger": "link",
+        "via": "zioapp.frontend.pages.Shell.apply"
+      }
+    ]
+  },
+  {
+    "pattern": "/app/notes",
+    "page": "zioapp.frontend.Page.Notes",
+    "views": [
+      "func:zioapp.frontend.pages.NotesPage.render"
+    ],
+    "requests": [
+      {
+        "route": "GET /api/notes",
+        "trigger": "fetch",
+        "via": "zioapp.frontend.api.NoteApi.list"
+      }
+    ],
+    "navigatesTo": [
+      {
+        "to": "page:/app/admin",
+        "trigger": "link",
+        "via": "zioapp.frontend.pages.Shell.apply"
+      },
+      {
+        "to": "page:/app/notes",
+        "trigger": "link",
+        "via": "zioapp.frontend.pages.Shell.apply"
+      },
+      {
+        "to": "page:/app/notes/{noteId}",
+        "trigger": "link",
+        "via": "zioapp.frontend.pages.NotesPage.render"
+      }
+    ]
+  },
+  {
+    "pattern": "/app/notes/{noteId}",
+    "page": "zioapp.frontend.Page.NoteDetail",
+    "views": [
+      "func:zioapp.frontend.pages.NoteDetailPage.render"
+    ],
+    "requests": [
+      {
+        "route": "GET /api/notes/{id}",
+        "trigger": "fetch",
+        "via": "zioapp.frontend.api.NoteApi.get"
+      },
+      {
+        "route": "GET /api/notes/{id}/tags",
+        "trigger": "fetch",
+        "via": "zioapp.frontend.api.NoteApi.tags"
+      },
+      {
+        "route": "POST /api/notes/{id}/archive",
+        "trigger": "fetch",
+        "via": "zioapp.frontend.api.NoteApi.archive"
+      }
+    ],
+    "navigatesTo": [
+      {
+        "to": "page:/app/admin",
+        "trigger": "link",
+        "via": "zioapp.frontend.pages.Shell.apply"
+      },
+      {
+        "to": "page:/app/notes",
+        "trigger": "link",
+        "via": "zioapp.frontend.pages.NoteDetailPage.render"
+      },
+      {
+        "to": "page:/app/notes",
+        "trigger": "navigate",
+        "via": "zioapp.frontend.pages.NoteDetailPage.render"
+      }
+    ]
+  }
+]

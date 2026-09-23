@@ -159,6 +159,15 @@ private[scala] trait Routing { self: Walk =>
 
   private def key(p: Pattern): String = s"${p.method} ${path(p)}"
 
+  /** The method and path of the route a member holding a path template or
+    * an endpoint describes, as the route's key has them.
+    */
+  private[scala] def apiRoute(sym: Symbol): Option[(String, String)] = evalMember(sym) match {
+    case Template(m, p) => Some((m, path(Pattern(m, split(p)))))
+    case EndpointV(p)   => Some((p.method, path(p)))
+    case _              => None
+  }
+
   private def path(p: Pattern): String = p.segs.mkString("/", "/", "")
 
   private[scala] def unprefixed(id: String): String = id.substring(id.indexOf(':') + 1)

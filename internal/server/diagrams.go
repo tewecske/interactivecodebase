@@ -15,12 +15,13 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/views"
 )
 
-// sitemapDiagram draws routes grouped by access, with navigation edges.
+// sitemapDiagram draws routes and frontend pages grouped by access, with
+// navigation edges.
 // Query parameters narrow it: get=1 (GET routes only), access (comma list
 // of groups: public, optional, guest, authenticated, admin), q (substring).
 func (s *Server) sitemapDiagram(r *http.Request) (any, error) {
 	ctx := r.Context()
-	routes, err := s.p.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
+	routes, err := s.p.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute, graph.KindPage}})
 	if err != nil {
 		return nil, err
 	}
