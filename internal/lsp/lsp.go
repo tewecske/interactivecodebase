@@ -87,8 +87,11 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// Close stops gopls.
+// Close stops gopls. A nil client has nothing to stop.
 func (c *Client) Close() error {
+	if c == nil {
+		return nil
+	}
 	c.mu.Lock()
 	cn := c.conn
 	c.conn = nil

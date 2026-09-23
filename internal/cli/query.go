@@ -70,12 +70,12 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	r, release, err := openAnalysis(ctx, fs.Arg(0), opts)
+	p, release, err := openAnalysis(ctx, fs.Arg(0), opts)
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, release()) }()
-	g := r.Graph
+	g := p.Graph
 	q := &querier{e: e, g: g, json: *asJSON}
 
 	switch cmd {

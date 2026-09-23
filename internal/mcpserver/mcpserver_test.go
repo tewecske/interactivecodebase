@@ -24,6 +24,9 @@ func TestMain(m *testing.M) {
 	if r, err := webapp(); err == nil {
 		_ = r.Close()
 	}
+	if p, err := imported(); err == nil {
+		_ = p.Close()
+	}
 	os.Exit(code)
 }
 
@@ -35,7 +38,13 @@ func connect(t *testing.T, analyze live.AnalyzeFunc) *mcp.ClientSession {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cur := live.New(r, func() error { return nil }, analyze)
+	return connectTo(t, r.Project(), analyze)
+}
+
+// connectTo starts the server over p, which it does not release.
+func connectTo(t *testing.T, p *analysis.Project, analyze live.AnalyzeFunc) *mcp.ClientSession {
+	t.Helper()
+	cur := live.New(p, func() error { return nil }, analyze)
 	t.Cleanup(func() { _ = cur.Close() })
 	serverT, clientT := mcp.NewInMemoryTransports()
 	ctx := t.Context()
@@ -166,8 +175,12 @@ func TestResources(t *testing.T) {
 }
 
 func TestReanalyze(t *testing.T) {
-	cs := connect(t, func(ctx context.Context) (*analysis.Result, error) {
-		return analysis.Analyze(ctx, fixture.WebappDir(), analysis.Options{})
+	cs := connect(t, func(ctx context.Context) (*analysis.Project, error) {
+		r, err := analysis.Analyze(ctx, fixture.WebappDir(), analysis.Options{})
+		if err != nil {
+			return nil, err
+		}
+		return r.Project(), nil
 	})
 	out, isErr := call(t, cs, "reanalyze", nil)
 	if isErr || !strings.Contains(out, "13 routes") {
@@ -200,7 +213,7 @@ func TestLSPTools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cur := live.New(r, func() error { return nil }, nil)
+	cur := live.New(r.Project(), func() error { return nil }, nil)
 	serverT, clientT := mcp.NewInMemoryTransports()
 	if _, err := New(cur, c).Connect(t.Context(), serverT, nil); err != nil {
 		t.Fatal(err)

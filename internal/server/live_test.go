@@ -15,9 +15,9 @@ import (
 )
 
 func TestLiveStatusAndEvents(t *testing.T) {
-	empty := func(ctx context.Context) (*analysis.Result, error) {
+	empty := func(ctx context.Context) (*analysis.Project, error) {
 		g, err := graph.Open(ctx)
-		return &analysis.Result{Module: "m", Graph: g}, err
+		return &analysis.Project{Module: "m", Graph: g}, err
 	}
 	first, err := empty(t.Context())
 	if err != nil {

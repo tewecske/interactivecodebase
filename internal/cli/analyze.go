@@ -28,20 +28,20 @@ func runAnalyze(ctx context.Context, e *env, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	r, release, err := openAnalysis(ctx, fs.Arg(0), opts)
+	p, release, err := openAnalysis(ctx, fs.Arg(0), opts)
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, release()) }()
-	counts, err := r.Graph.Counts(ctx)
+	counts, err := p.Graph.Counts(ctx)
 	if err != nil {
 		return err
 	}
 	if *asJSON {
-		return writeJSON(e, summaryJSON(r, counts))
+		return writeJSON(e, summaryJSON(p, counts))
 	}
-	s := r.Stats
-	fmt.Fprintf(e.stdout, "module %s (%s)\n", r.Module, r.Dir)
+	s := p.Stats
+	fmt.Fprintf(e.stdout, "module %s (%s)\n", p.Module, p.Dir)
 	fmt.Fprintf(e.stdout, "%d packages, %d functions in the module, %d in the whole program\n",
 		s.Packages, s.ModuleFunctions, s.Functions)
 	fmt.Fprintf(e.stdout, "load %v, ssa %v, call graph %v, graph %v, total %v\n\n",
@@ -67,15 +67,15 @@ func loadOptions(dir, path string) (analysis.Options, error) {
 
 // openAnalysis analyzes dir; the caller must call release when done. Tests
 // replace it to share one analysis across commands.
-var openAnalysis = func(ctx context.Context, dir string, opts analysis.Options) (r *analysis.Result, release func() error, err error) {
+var openAnalysis = func(ctx context.Context, dir string, opts analysis.Options) (p *analysis.Project, release func() error, err error) {
 	if err := checkDir(dir); err != nil {
 		return nil, nil, err
 	}
-	r, err = analysis.Analyze(ctx, dir, opts)
+	r, err := analysis.Analyze(ctx, dir, opts)
 	if err != nil {
 		return nil, nil, err
 	}
-	return r, r.Close, nil
+	return r.Project(), r.Close, nil
 }
 
 type summary struct {
@@ -96,11 +96,11 @@ type statsJSON struct {
 	TotalMS         int64 `json:"totalMs"`
 }
 
-func summaryJSON(r *analysis.Result, counts graph.Counts) summary {
-	s := r.Stats
+func summaryJSON(p *analysis.Project, counts graph.Counts) summary {
+	s := p.Stats
 	return summary{
-		Module: r.Module,
-		Dir:    r.Dir,
+		Module: p.Module,
+		Dir:    p.Dir,
 		Stats: statsJSON{
 			Packages: s.Packages, Functions: s.Functions, ModuleFunctions: s.ModuleFunctions,
 			LoadMS: s.Load.Milliseconds(), SSAMS: s.SSA.Milliseconds(), CallGraphMS: s.CallGraph.Milliseconds(),

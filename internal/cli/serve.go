@@ -48,8 +48,8 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 	}
 	defer func() { err = errors.Join(err, cur.Close()) }()
 	var module, took, root string
-	_ = cur.With(func(r *analysis.Result) error {
-		module, took, root = r.Module, round(r.Stats.Total()).String(), r.Dir
+	_ = cur.With(func(p *analysis.Project) error {
+		module, took, root = p.Module, round(p.Stats.Total()).String(), p.Dir
 		return nil
 	})
 

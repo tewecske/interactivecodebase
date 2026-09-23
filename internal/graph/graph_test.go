@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -428,4 +431,103 @@ func sameSet(a, b []string) bool {
 	slices.Sort(a)
 	slices.Sort(b)
 	return slices.Equal(a, b)
+}
+
+func TestImport(t *testing.T) {
+	var buf bytes.Buffer
+	if err := newFixture(t).Export(t.Context(), &buf); err != nil {
+		t.Fatal(err)
+	}
+	g := newGraph(t)
+	if err := g.Import(t.Context(), bytes.NewReader(buf.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	var again bytes.Buffer
+	if err := g.Export(t.Context(), &again); err != nil {
+		t.Fatal(err)
+	}
+	if buf.String() != again.String() {
+		t.Errorf("export of the imported graph differs:\n%s\nwant:\n%s", again.String(), buf.String())
+	}
+
+	// The version is optional, and edges may join nodes already in the
+	// graph.
+	more := `{"nodes": [{"id": "func:x.F", "kind": "func", "name": "F"}],
+		"edges": [{"from": "func:x.F", "to": "` + idService + `", "kind": "calls"}]}`
+	if err := g.Import(t.Context(), strings.NewReader(more)); err != nil {
+		t.Fatal(err)
+	}
+	if nbs, err := g.Neighbors(t.Context(), "func:x.F", Out); err != nil || len(nbs) != 1 || nbs[0].Node.ID != idService {
+		t.Errorf("imported edge to an existing node: %+v %v", nbs, err)
+	}
+
+	for _, c := range []struct{ doc, want string }{
+		{`{"version": 2, "nodes": [], "edges": []}`, "unsupported version 2"},
+		{`{"nodes": [{"id": "a", "kind": "class", "name": "A"}], "edges": []}`, `unknown kind "class"`},
+		{`{"nodes": [{"id": "a", "kind": "func", "name": "A"}], "edges": [{"from": "a", "to": "b", "kind": "calls"}]}`, `unknown node "b"`},
+		{`{"nodes": [{"id": "a", "kind": "func", "name": "A"}], "edges": [{"from": "a", "to": "a", "kind": "invokes"}]}`, `unknown kind "invokes"`},
+		{`{"nodes": [{"id": "a", "kind": "func", "name": "A", "signature": "f()"}], "edges": []}`, `unknown field "signature"`},
+		{`{"nodes": [`, "unexpected EOF"},
+	} {
+		g := newGraph(t)
+		err := g.Import(t.Context(), strings.NewReader(c.doc))
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: error %v, want %q", c.doc, err, c.want)
+			continue
+		}
+		// A failed import writes nothing.
+		if counts, err := g.Counts(t.Context()); err != nil || len(counts.Nodes) != 0 {
+			t.Errorf("%s: failed import left %+v", c.doc, counts)
+		}
+	}
+}
+
+// TestSchema checks that docs/graph.schema.json describes exactly the
+// fields and kinds of the export format.
+func TestSchema(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "graph.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	type object struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Enum       []string                   `json:"enum"`
+	}
+	var schema struct {
+		object
+		Defs map[string]object `json:"$defs"`
+	}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatal(err)
+	}
+	check := func(what string, typ reflect.Type, props map[string]json.RawMessage) {
+		t.Helper()
+		var fields []string
+		for f := range typ.Fields() {
+			fields = append(fields, strings.Split(f.Tag.Get("json"), ",")[0])
+		}
+		keys := slices.Sorted(maps.Keys(props))
+		slices.Sort(fields)
+		if !slices.Equal(fields, keys) {
+			t.Errorf("%s: schema properties %v, struct fields %v", what, keys, fields)
+		}
+	}
+	check("document", reflect.TypeFor[document](), schema.Properties)
+	check("node", reflect.TypeFor[Node](), schema.Defs["node"].Properties)
+	check("edge", reflect.TypeFor[Edge](), schema.Defs["edge"].Properties)
+	check("pos", reflect.TypeFor[Pos](), schema.Defs["pos"].Properties)
+	kinds := func(m map[string]bool) []string { return slices.Sorted(maps.Keys(m)) }
+	nk, ek := map[string]bool{}, map[string]bool{}
+	for k := range nodeKinds {
+		nk[string(k)] = true
+	}
+	for k := range edgeKinds {
+		ek[string(k)] = true
+	}
+	if got := slices.Sorted(slices.Values(schema.Defs["nodeKind"].Enum)); !slices.Equal(got, kinds(nk)) {
+		t.Errorf("node kinds: schema %v, graph %v", got, kinds(nk))
+	}
+	if got := slices.Sorted(slices.Values(schema.Defs["edgeKind"].Enum)); !slices.Equal(got, kinds(ek)) {
+		t.Errorf("edge kinds: schema %v, graph %v", got, kinds(ek))
+	}
 }

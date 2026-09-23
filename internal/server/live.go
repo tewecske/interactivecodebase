@@ -20,7 +20,7 @@ type Live struct {
 	lsp *lsp.Client
 
 	mu  sync.Mutex
-	r   *analysis.Result
+	p   *analysis.Project
 	srv *Server
 }
 
@@ -30,11 +30,11 @@ func NewLive(cur *live.Current, ui http.Handler, lspClient *lsp.Client) *Live {
 	return &Live{cur: cur, ui: ui, lsp: lspClient}
 }
 
-func (l *Live) serverFor(r *analysis.Result) *Server {
+func (l *Live) serverFor(p *analysis.Project) *Server {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.r != r {
-		l.r, l.srv = r, New(r, l.ui, l.lsp)
+	if l.p != p {
+		l.p, l.srv = p, New(p, l.ui, l.lsp)
 	}
 	return l.srv
 }
@@ -53,8 +53,8 @@ func (l *Live) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	err := l.cur.With(func(r *analysis.Result) error {
-		l.serverFor(r).ServeHTTP(w, req)
+	err := l.cur.With(func(p *analysis.Project) error {
+		l.serverFor(p).ServeHTTP(w, req)
 		return nil
 	})
 	if err != nil {

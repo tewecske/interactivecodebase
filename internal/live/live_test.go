@@ -13,7 +13,7 @@ import (
 // fake returns analyses with an empty graph, counting calls.
 func fake(t *testing.T, fail *bool) (AnalyzeFunc, *int) {
 	n := 0
-	return func(ctx context.Context) (*analysis.Result, error) {
+	return func(ctx context.Context) (*analysis.Project, error) {
 		if *fail {
 			return nil, errors.New("does not build")
 		}
@@ -22,7 +22,7 @@ func fake(t *testing.T, fail *bool) (AnalyzeFunc, *int) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return &analysis.Result{Module: "m", Graph: g}, nil
+		return &analysis.Project{Module: "m", Graph: g}, nil
 	}, &n
 }
 
@@ -36,8 +36,8 @@ func TestReanalyzeSwapsAndKeepsOldOnFailure(t *testing.T) {
 	if err := c.Reanalyze(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	var cur *analysis.Result
-	_ = c.With(func(r *analysis.Result) error { cur = r; return nil })
+	var cur *analysis.Project
+	_ = c.With(func(p *analysis.Project) error { cur = p; return nil })
 	if cur == first || c.Generation() != 2 || *calls != 2 {
 		t.Errorf("after reanalysis: same=%v gen=%d calls=%d", cur == first, c.Generation(), *calls)
 	}
@@ -49,8 +49,8 @@ func TestReanalyzeSwapsAndKeepsOldOnFailure(t *testing.T) {
 	if err := c.Reanalyze(t.Context()); err == nil {
 		t.Fatal("reanalysis should fail")
 	}
-	var still *analysis.Result
-	_ = c.With(func(r *analysis.Result) error { still = r; return nil })
+	var still *analysis.Project
+	_ = c.With(func(p *analysis.Project) error { still = p; return nil })
 	if still != cur || c.Generation() != 2 {
 		t.Error("failed reanalysis replaced the current analysis")
 	}
@@ -67,11 +67,11 @@ func TestReadersFinishBeforeSwap(t *testing.T) {
 	release := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		_ = c.With(func(r *analysis.Result) error {
+		_ = c.With(func(p *analysis.Project) error {
 			close(inside)
 			<-release
 			// The graph must still be open while we hold it.
-			if _, err := r.Graph.Counts(context.Background()); err != nil {
+			if _, err := p.Graph.Counts(context.Background()); err != nil {
 				t.Errorf("graph closed under a reader: %v", err)
 			}
 			return nil
@@ -95,7 +95,7 @@ func TestClosed(t *testing.T) {
 	if err := c.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.With(func(*analysis.Result) error { return nil }); !errors.Is(err, ErrClosed) {
+	if err := c.With(func(*analysis.Project) error { return nil }); !errors.Is(err, ErrClosed) {
 		t.Errorf("With after Close: %v", err)
 	}
 }

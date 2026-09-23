@@ -25,7 +25,7 @@ func TestGowebGroupCreateSequence(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = r.Close() })
 	rec := httptest.NewRecorder()
-	New(r, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+	New(r.Project(), nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
 		"/api/diagrams/flow?route="+url.QueryEscape("POST /{lang}/groups"), nil))
 	var d mermaid.Diagram
 	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
@@ -57,7 +57,7 @@ func TestGowebGroupsTable(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = r.Close() })
 	rec := httptest.NewRecorder()
-	New(r, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/table?name=groups", nil))
+	New(r.Project(), nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/table?name=groups", nil))
 	var d TableDetail
 	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
 		t.Fatal(err)

@@ -27,13 +27,13 @@ type Summary struct {
 }
 
 func (s *Server) summary(r *http.Request) (any, error) {
-	counts, err := s.r.Graph.Counts(r.Context())
+	counts, err := s.p.Graph.Counts(r.Context())
 	if err != nil {
 		return nil, err
 	}
 	return Summary{
-		Module: s.r.Module, Dir: s.r.Dir, Packages: s.r.Stats.Packages, Functions: s.r.Stats.ModuleFunctions,
-		Counts: counts, MigrationDirs: nonNil(s.r.MigrationDirs), TotalMS: s.r.Stats.Total().Milliseconds(),
+		Module: s.p.Module, Dir: s.p.Dir, Packages: s.p.Stats.Packages, Functions: s.p.Stats.ModuleFunctions,
+		Counts: counts, MigrationDirs: nonNil(s.p.MigrationDirs), TotalMS: s.p.Stats.Total().Milliseconds(),
 	}, nil
 }
 
@@ -59,7 +59,7 @@ type RouteInfo struct {
 // listEntries lists the entry points other than routes (workers, jobs,
 // commands, gRPC methods, consumers) in source order.
 func (s *Server) listEntries(r *http.Request) (any, error) {
-	nodes, err := s.r.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindEntry}})
+	nodes, err := s.p.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindEntry}})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Server) listEntries(r *http.Request) (any, error) {
 }
 
 func (s *Server) listRoutes(r *http.Request) (any, error) {
-	nodes, err := s.r.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
+	nodes, err := s.p.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (s *Server) listRoutes(r *http.Request) (any, error) {
 			(q.Get("q") != "" && !strings.Contains(strings.ToLower(ri.Pattern), strings.ToLower(q.Get("q")))) {
 			continue
 		}
-		if nbs, err := s.r.Graph.Neighbors(r.Context(), n.ID, graph.Out, graph.EdgeRenders); err == nil && len(nbs) > 0 {
+		if nbs, err := s.p.Graph.Neighbors(r.Context(), n.ID, graph.Out, graph.EdgeRenders); err == nil && len(nbs) > 0 {
 			ri.Page = true
 		}
 		out = append(out, ri)
@@ -123,13 +123,13 @@ func (s *Server) node(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	n, err := s.r.Graph.Node(r.Context(), id)
+	n, err := s.p.Graph.Node(r.Context(), id)
 	if err != nil {
 		return nil, err
 	}
 	d := NodeDetail{Node: n, Out: map[string][]graph.Neighbor{}, In: map[string][]graph.Neighbor{}}
 	for dir, into := range map[graph.Direction]map[string][]graph.Neighbor{graph.Out: d.Out, graph.In: d.In} {
-		nbs, err := s.r.Graph.Neighbors(r.Context(), id, dir)
+		nbs, err := s.p.Graph.Neighbors(r.Context(), id, dir)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +158,7 @@ func (s *Server) page(r *http.Request) (any, error) {
 	for kind, into := range map[graph.EdgeKind]*[]graph.Neighbor{
 		graph.EdgeRenders: &p.Renders, graph.EdgeRequests: &p.Requests, graph.EdgeLoads: &p.Assets, graph.EdgeNavigatesTo: &p.Links,
 	} {
-		nbs, err := s.r.Graph.Neighbors(r.Context(), route.ID, graph.Out, kind)
+		nbs, err := s.p.Graph.Neighbors(r.Context(), route.ID, graph.Out, kind)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,7 @@ func (s *Server) routeNode(r *http.Request) (graph.Node, error) {
 	if !strings.HasPrefix(key, string(graph.KindRoute)+":") && !strings.HasPrefix(key, string(graph.KindEntry)+":") {
 		id = graph.NodeID(graph.KindRoute, key)
 	}
-	n, err := s.r.Graph.Node(r.Context(), id)
+	n, err := s.p.Graph.Node(r.Context(), id)
 	if err != nil {
 		return graph.Node{}, notFound("no route " + key)
 	}
@@ -211,7 +211,7 @@ func (s *Server) flow(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return flow.Build(r.Context(), s.r.Graph, route.ID, opts)
+	return flow.Build(r.Context(), s.p.Graph, route.ID, opts)
 }
 
 func (s *Server) paths(r *http.Request) (any, error) {
@@ -227,7 +227,7 @@ func (s *Server) paths(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	paths, err := s.r.Graph.Paths(r.Context(), from, to, graph.PathOptions{MaxDepth: depth})
+	paths, err := s.p.Graph.Paths(r.Context(), from, to, graph.PathOptions{MaxDepth: depth})
 	return nonNil(paths), err
 }
 
@@ -255,7 +255,7 @@ func (s *Server) source(r *http.Request) (any, error) {
 		return nil, badRequest("file must be relative to the module")
 	}
 	// os.Root also stops symlinks inside the module from escaping it.
-	root, err := os.OpenRoot(s.r.Dir)
+	root, err := os.OpenRoot(s.p.Dir)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +282,7 @@ func (s *Server) source(r *http.Request) (any, error) {
 }
 
 func (s *Server) tables(r *http.Request) (any, error) {
-	nodes, err := s.r.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindSQLTable}})
+	nodes, err := s.p.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindSQLTable}})
 	return nonNil(nodes), err
 }
 
@@ -306,25 +306,25 @@ func (s *Server) table(r *http.Request) (any, error) {
 	}
 	ctx := r.Context()
 	id := analysis.TableID(name)
-	t, err := s.r.Graph.Node(ctx, id)
+	t, err := s.p.Graph.Node(ctx, id)
 	if err != nil {
 		return nil, notFound("no table " + name)
 	}
 	d := TableDetail{Table: t}
-	cols, err := s.r.Graph.Neighbors(ctx, id, graph.Out, graph.EdgeHasColumn)
+	cols, err := s.p.Graph.Neighbors(ctx, id, graph.Out, graph.EdgeHasColumn)
 	if err != nil {
 		return nil, err
 	}
 	for _, c := range cols {
 		d.Columns = append(d.Columns, c.Node)
 	}
-	if d.FKsOut, err = s.r.Graph.Neighbors(ctx, id, graph.Out, graph.EdgeFK); err != nil {
+	if d.FKsOut, err = s.p.Graph.Neighbors(ctx, id, graph.Out, graph.EdgeFK); err != nil {
 		return nil, err
 	}
-	if d.FKsIn, err = s.r.Graph.Neighbors(ctx, id, graph.In, graph.EdgeFK); err != nil {
+	if d.FKsIn, err = s.p.Graph.Neighbors(ctx, id, graph.In, graph.EdgeFK); err != nil {
 		return nil, err
 	}
-	if d.Queries, err = s.r.Graph.Neighbors(ctx, id, graph.In, graph.EdgeQueries); err != nil {
+	if d.Queries, err = s.p.Graph.Neighbors(ctx, id, graph.In, graph.EdgeQueries); err != nil {
 		return nil, err
 	}
 	routes, err := s.tableRoutes(r)
@@ -341,7 +341,7 @@ func (s *Server) table(r *http.Request) (any, error) {
 func (s *Server) tableRoutes(r *http.Request) (map[string][]TableRoute, error) {
 	// Computed once for all requests, so not tied to this request's context.
 	ctx := context.WithoutCancel(r.Context())
-	s.tablesOnce.Do(func() { s.routesByTbl, s.tablesErr = views.TableRoutes(ctx, s.r.Graph) })
+	s.tablesOnce.Do(func() { s.routesByTbl, s.tablesErr = views.TableRoutes(ctx, s.p.Graph) })
 	return s.routesByTbl, s.tablesErr
 }
 
@@ -361,13 +361,13 @@ func (s *Server) search(r *http.Request) (any, error) {
 		if len(opts.Kinds) == 0 {
 			return nil, badRequest("give q, kind, or both")
 		}
-		nodes, err := s.r.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: opts.Kinds})
+		nodes, err := s.p.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: opts.Kinds})
 		if len(nodes) > opts.Limit {
 			nodes = nodes[:opts.Limit]
 		}
 		return nonNil(nodes), err
 	}
-	nodes, err := s.r.Graph.Search(r.Context(), q, opts)
+	nodes, err := s.p.Graph.Search(r.Context(), q, opts)
 	return nonNil(nodes), err
 }
 

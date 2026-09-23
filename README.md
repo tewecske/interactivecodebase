@@ -45,6 +45,8 @@ bin/icb query -json ../goweb export > graph.json
 ```
 
 A node argument is a node ID, an ID without its kind prefix, or text that matches exactly one node.
+The export format is described by [docs/graph.schema.json](docs/graph.schema.json); icb imports the
+same format from extractors for other languages.
 
 Or install it without the web UI (the API, CLI and MCP work; `/` explains how to add the UI):
 

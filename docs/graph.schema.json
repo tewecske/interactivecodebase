@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tewecske/interactivecodebase/docs/graph.schema.json",
+  "title": "icb code graph",
+  "description": "The code graph that `icb query <dir> export` writes and icb imports from extractors for languages other than Go. Positions are relative to the project root. Nodes come first; an edge's endpoints must be nodes of the document. Unknown fields are rejected.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nodes", "edges"],
+  "properties": {
+    "version": {
+      "description": "Format version. Optional; icb reads version 1.",
+      "const": 1
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "description": "Edges in insertion order, which breaks ties between edges at the same position (e.g. calls on one line). An edge equal to an earlier one in from, to, kind and start position is dropped.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name"],
+      "properties": {
+        "id": {
+          "description": "Stable ID, by convention \"<kind>:<qualified name>\", e.g. \"method:(*example.com/app/notes.Service).Create\", \"route:GET /{lang}/notes\", \"sql_table:notes\". A node repeated with the same ID replaces the earlier one.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": { "$ref": "#/$defs/nodeKind" },
+        "name": {
+          "description": "Short display name, e.g. \"Create\" or \"GET /{lang}/notes\".",
+          "type": "string"
+        },
+        "package": {
+          "description": "The package (import path, Scala package, ...) the node belongs to, if any.",
+          "type": "string"
+        },
+        "detail": {
+          "description": "Searchable text: a signature, SQL text, a route's concrete patterns, a URL. For a type node: struct, interface or type.",
+          "type": "string"
+        },
+        "pos": { "$ref": "#/$defs/pos" },
+        "attrs": { "$ref": "#/$defs/attrs" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "kind"],
+      "properties": {
+        "id": {
+          "description": "Written by export, ignored by import.",
+          "type": "integer"
+        },
+        "from": { "description": "Source node ID.", "type": "string" },
+        "to": { "description": "Target node ID.", "type": "string" },
+        "kind": { "$ref": "#/$defs/edgeKind" },
+        "pos": {
+          "$ref": "#/$defs/pos",
+          "description": "Where the relation originates, e.g. the call site."
+        },
+        "attrs": { "$ref": "#/$defs/attrs" }
+      }
+    },
+    "pos": {
+      "description": "A source range. Lines and columns are 1-based; zero or missing means unknown.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": { "description": "Path relative to the project root, with / separators.", "type": "string" },
+        "startLine": { "type": "integer", "minimum": 0 },
+        "startCol": { "type": "integer", "minimum": 0 },
+        "endLine": { "type": "integer", "minimum": 0 },
+        "endCol": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "attrs": {
+      "description": "Kind-specific string attributes, e.g. a route's method, pattern, access and handler, or an edge's SQL op.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "nodeKind": {
+      "enum": [
+        "route", "entry", "page", "htmx_call", "static_asset", "template", "handler", "func", "method",
+        "interface_call", "sink.sql", "sink.file", "sink.http", "sink.smtp", "sink.exec", "sink.env",
+        "type", "sql_table", "sql_column"
+      ]
+    },
+    "edgeKind": {
+      "description": "The types diagram without Go type information uses implements (concrete type to interface or trait) and uses_type (from a function to its receiver, parameter and result types, and from a type to the types its fields refer to).",
+      "enum": [
+        "navigates_to", "requests", "loads", "handled_by", "calls", "implements", "dispatches_to",
+        "renders", "uses_type", "queries", "has_column", "fk", "guarded_by", "runs"
+      ]
+    }
+  }
+}

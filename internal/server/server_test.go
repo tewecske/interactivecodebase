@@ -31,6 +31,9 @@ func TestMain(m *testing.M) {
 	if r, err := webapp(); err == nil {
 		_ = r.Close()
 	}
+	if p, err := imported(); err == nil {
+		_ = p.Close()
+	}
 	os.Exit(code)
 }
 
@@ -43,7 +46,7 @@ func get(t *testing.T, path string, v any) int {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	New(r, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	New(r.Project(), nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 	if ct := rec.Header().Get("Content-Type"); strings.HasPrefix(path, "/api/") && ct != "application/json" {
 		t.Errorf("%s: content type %q", path, ct)
 	}
@@ -176,7 +179,7 @@ func TestSourceRejectsSymlinkEscape(t *testing.T) {
 	}
 	// The source endpoint only needs the module directory.
 	rec := httptest.NewRecorder()
-	New(&analysis.Result{Dir: dir}, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/source?file=etc/hostname", nil))
+	New(&analysis.Project{Dir: dir}, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/source?file=etc/hostname", nil))
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("symlink escape: status %d: %s", rec.Code, rec.Body.String())
 	}
@@ -188,7 +191,7 @@ func TestPlaceholderUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	New(r, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	New(r.Project(), nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "/api/summary") {
 		t.Errorf("placeholder %d %s", rec.Code, rec.Body.String())
 	}

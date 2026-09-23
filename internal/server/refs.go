@@ -35,11 +35,15 @@ func (s *Server) refs(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	abs := filepath.Join(s.r.Dir, filepath.Clean(filepath.FromSlash(file)))
+	res, err := s.goAnalysis("identifier references")
+	if err != nil {
+		return nil, err
+	}
+	abs := filepath.Join(s.p.Dir, filepath.Clean(filepath.FromSlash(file)))
 	var out []Ref
 	found := false
-	packages.Visit(s.r.Packages, nil, func(p *packages.Package) {
-		if found || p.TypesInfo == nil || !s.r.InModule(p.PkgPath) {
+	packages.Visit(res.Packages, nil, func(p *packages.Package) {
+		if found || p.TypesInfo == nil || !res.InModule(p.PkgPath) {
 			return
 		}
 		for i, f := range p.CompiledGoFiles {
@@ -47,7 +51,7 @@ func (s *Server) refs(r *http.Request) (any, error) {
 				continue
 			}
 			found = true
-			out = s.fileRefs(p, p.Syntax[i])
+			out = s.fileRefs(res, p, p.Syntax[i])
 			return
 		}
 	})
@@ -57,7 +61,7 @@ func (s *Server) refs(r *http.Request) (any, error) {
 	return nonNil(out), nil
 }
 
-func (s *Server) fileRefs(p *packages.Package, f *ast.File) []Ref {
+func (s *Server) fileRefs(res *analysis.Result, p *packages.Package, f *ast.File) []Ref {
 	fset := p.Fset
 	var out []Ref
 	add := func(id *ast.Ident, obj types.Object) {
@@ -66,9 +70,9 @@ func (s *Server) fileRefs(p *packages.Package, f *ast.File) []Ref {
 		}
 		start := fset.Position(id.Pos())
 		ref := Ref{Line: start.Line, Col: start.Column, EndCol: start.Column + len(id.Name), Name: id.Name, Kind: objKind(obj)}
-		if s.r.InModule(obj.Pkg().Path()) {
+		if res.InModule(obj.Pkg().Path()) {
 			def := fset.Position(obj.Pos())
-			if rel, err := filepath.Rel(s.r.Dir, def.Filename); err == nil {
+			if rel, err := filepath.Rel(s.p.Dir, def.Filename); err == nil {
 				ref.Target = &graph.Pos{File: filepath.ToSlash(rel), StartLine: def.Line, StartCol: def.Column}
 			}
 		}
