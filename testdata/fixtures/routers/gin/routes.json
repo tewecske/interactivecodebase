@@ -1,0 +1,90 @@
+[
+  {
+    "method": "GET",
+    "pattern": "/health",
+    "handler": "example.com/ginapp.health",
+    "access": "public",
+    "middleware": [
+      "example.com/ginapp.logging"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/assets/*filepath",
+    "handler": "{?}",
+    "access": "public",
+    "middleware": [
+      "example.com/ginapp.logging"
+    ],
+    "static": true
+  },
+  {
+    "method": "GET",
+    "pattern": "/v1/notes",
+    "handler": "example.com/ginapp.listNotes",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/ginapp.logging",
+      "example.com/ginapp.authRequired"
+    ]
+  },
+  {
+    "method": "POST",
+    "pattern": "/v1/notes",
+    "handler": "example.com/ginapp.createNote",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/ginapp.logging",
+      "example.com/ginapp.authRequired",
+      "example.com/ginapp.audit"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "pattern": "/v1/admin/notes/:id",
+    "handler": "example.com/ginapp.deleteNote",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/ginapp.logging",
+      "example.com/ginapp.authRequired",
+      "example.com/ginapp.adminOnly"
+    ]
+  },
+  {
+    "method": "ANY",
+    "pattern": "/ping",
+    "handler": "example.com/ginapp.ping",
+    "access": "public",
+    "middleware": [
+      "example.com/ginapp.logging"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "pattern": "/settings",
+    "handler": "example.com/ginapp.updateSettings",
+    "access": "public",
+    "middleware": [
+      "example.com/ginapp.logging"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/users/:id",
+    "handler": "example.com/ginapp.getUser",
+    "access": "public",
+    "middleware": [
+      "example.com/ginapp.logging"
+    ]
+  },
+  {
+    "method": "PUT",
+    "pattern": "/users/:id",
+    "handler": "example.com/ginapp.updateUser",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/ginapp.logging",
+      "example.com/ginapp.authRequired"
+    ]
+  }
+]

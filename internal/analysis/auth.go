@@ -428,6 +428,11 @@ func (c *authClassifier) consults(fn *ssa.Function, m string, seen map[*ssa.Func
 					return GuardUse{Guard: callee, Pos: call.Pos()}, true
 				}
 				targets := []*ssa.Function{callee}
+				if !inModule(c.r.Module, funcPkg(callee)) && dispatchesChain(callee) {
+					// gin's c.Next() runs every later handler of the
+					// route, not something this handler consults.
+					continue
+				}
 				if !inModule(c.r.Module, funcPkg(callee)) {
 					// Through library code back into the module, e.g.
 					// HandlerFunc.ServeHTTP calling a handler closure.
@@ -538,16 +543,38 @@ func reachesSink(r *Result) map[*ssa.Function]bool {
 	return out
 }
 
-// requestParam returns the index of fn's *http.Request parameter, or -1.
+// requestParam returns the index of fn's request parameter, or -1: an
+// *http.Request, or a router framework's request context (*gin.Context,
+// echo.Context).
 func requestParam(fn *ssa.Function) int {
 	for i, p := range fn.Params {
-		if isNetHTTP(p.Type(), "Request") {
-			if _, ok := p.Type().(*types.Pointer); ok {
-				return i
-			}
+		if isRequestType(p.Type()) {
+			return i
 		}
 	}
 	return -1
+}
+
+func isRequestType(t types.Type) bool {
+	ptr, isPtr := types.Unalias(t).(*types.Pointer)
+	if isPtr && isNetHTTP(t, "Request") {
+		return true
+	}
+	if isPtr {
+		t = ptr.Elem()
+	}
+	named, ok := types.Unalias(t).(*types.Named)
+	if !ok || named.Obj().Pkg() == nil || named.Obj().Name() != "Context" {
+		return false
+	}
+	return slices.ContainsFunc(frameworks, func(f *framework) bool { return f.inPkg(named.Obj().Pkg().Path()) })
+}
+
+// dispatchesChain reports whether fn is a method of a framework request
+// context, such as gin's (*Context).Next.
+func dispatchesChain(fn *ssa.Function) bool {
+	recv := fn.Signature.Recv()
+	return recv != nil && isRequestType(recv.Type()) && !isNetHTTP(recv.Type(), "Request")
 }
 
 // passesRequest reports whether call passes fn's request parameter on.
@@ -632,8 +659,13 @@ func middlewareClosures(fn *ssa.Function) []*ssa.Function {
 			}
 			break
 		}
-		if mc, ok := v.(*ssa.MakeClosure); ok {
-			out = append(out, mc.Fn.(*ssa.Function))
+		switch v := v.(type) {
+		case *ssa.MakeClosure:
+			out = append(out, v.Fn.(*ssa.Function))
+		case *ssa.Function:
+			if v.Parent() == fn { // a literal capturing nothing
+				out = append(out, v)
+			}
 		}
 	}
 	if len(out) == 0 {

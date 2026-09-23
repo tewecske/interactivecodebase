@@ -1,0 +1,71 @@
+[
+  {
+    "method": "GET",
+    "pattern": "/",
+    "handler": "example.com/echoapp.home",
+    "access": "public",
+    "middleware": [
+      "example.com/echoapp.logging"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/static/*",
+    "handler": "{?}",
+    "access": "public",
+    "middleware": [
+      "example.com/echoapp.logging"
+    ],
+    "static": true
+  },
+  {
+    "method": "GET",
+    "pattern": "/api/notes",
+    "handler": "example.com/echoapp.listNotes",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/echoapp.logging",
+      "example.com/echoapp.requireAuth"
+    ]
+  },
+  {
+    "method": "POST",
+    "pattern": "/api/notes",
+    "handler": "example.com/echoapp.createNote",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/echoapp.logging",
+      "example.com/echoapp.requireAuth",
+      "example.com/echoapp.audit"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "pattern": "/api/admin/notes/:id",
+    "handler": "example.com/echoapp.deleteNote",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/echoapp.logging",
+      "example.com/echoapp.requireAuth",
+      "example.com/echoapp.adminOnly"
+    ]
+  },
+  {
+    "method": "PUT",
+    "pattern": "/profile",
+    "handler": "example.com/echoapp.updateProfile",
+    "access": "public",
+    "middleware": [
+      "example.com/echoapp.logging"
+    ]
+  },
+  {
+    "method": "ANY",
+    "pattern": "/ping",
+    "handler": "example.com/echoapp.ping",
+    "access": "public",
+    "middleware": [
+      "example.com/echoapp.logging"
+    ]
+  }
+]
