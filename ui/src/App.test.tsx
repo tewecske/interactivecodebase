@@ -258,4 +258,44 @@ describe("App", () => {
     await act(async () => el.querySelector<HTMLButtonElement>("button.theme")!.click());
     expect(document.documentElement.dataset.theme).not.toBe(before);
   });
+
+  it("shows the analysis status and reloads data on a new generation", async () => {
+    mockFetch();
+    const sources: FakeEventSource[] = [];
+    class FakeEventSource {
+      listeners: Record<string, (e: { data: string }) => void> = {};
+      constructor(readonly url: string) {
+        sources.push(this);
+      }
+      addEventListener(type: string, fn: (e: { data: string }) => void) {
+        this.listeners[type] = fn;
+      }
+      close() {}
+      emit(status: object) {
+        this.listeners.status?.({ data: JSON.stringify({ updatedAt: "2026-09-23T10:00:00Z", durationMs: 1200, ...status }) });
+      }
+    }
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const el = await render("#/home");
+    expect(sources[0]?.url).toBe("api/events");
+    const summaryCalls = () => vi.mocked(fetch).mock.calls.filter(([u]) => u === "api/summary").length;
+    const before = summaryCalls();
+
+    await act(async () => sources[0].emit({ generation: 1, analyzing: false }));
+    expect(el.querySelector(".status")?.textContent).toBe("analysis #1");
+    await act(async () => sources[0].emit({ generation: 1, analyzing: true }));
+    expect(el.querySelector(".status.busy")?.textContent).toBe("re-analyzing…");
+    expect(el.querySelector("h1")?.textContent).toBe("example.com/webapp"); // old data stays
+
+    await act(async () => sources[0].emit({ generation: 1, analyzing: false, error: "does not build" }));
+    expect(el.querySelector(".status.error")?.getAttribute("title")).toContain("does not build");
+    const afterError = summaryCalls();
+
+    await act(async () => sources[0].emit({ generation: 2, analyzing: false }));
+    await act(async () => new Promise((r) => setTimeout(r, 0)));
+    expect(el.querySelector(".status")?.textContent).toBe("analysis #2");
+    expect(summaryCalls()).toBeGreaterThan(afterError);
+    expect(afterError).toBeGreaterThan(before); // generation 0 -> 1 reloads too
+    expect(el.querySelector("h1")?.textContent).toBe("example.com/webapp");
+  });
 });

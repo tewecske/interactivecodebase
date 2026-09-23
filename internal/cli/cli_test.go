@@ -101,7 +101,6 @@ func TestSubcommandArgumentValidation(t *testing.T) {
 		{"analyze missing dir", []string{"analyze"}, ExitUsage, "expected 1 argument(s), got 0"},
 		{"analyze unknown flag", []string{"analyze", "-nope", dir}, ExitUsage, "flag provided but not defined"},
 		{"analyze nonexistent dir", []string{"analyze", dir + "/missing"}, ExitError, "no such file or directory"},
-		{"serve stub", []string{"serve", "-addr", ":0", "-watch", dir}, ExitError, "not implemented yet"},
 		{"mcp not a module", []string{"mcp", dir}, ExitError, "is not inside a Go module"},
 		{"query missing command", []string{"query", dir}, ExitUsage, "expected at least 2 argument(s), got 1"},
 		{"query unknown command", []string{"query", dir, "bogus"}, ExitUsage, `unknown query command "bogus"`},
