@@ -361,20 +361,29 @@ func (s *Server) tableRoutes(r *http.Request) (map[string][]TableRoute, error) {
 	return s.routesByTbl, s.tablesErr
 }
 
+// search finds nodes matching q, optionally only of the given kinds
+// (comma list). Without q it lists the nodes of those kinds.
 func (s *Server) search(r *http.Request) (any, error) {
-	q, err := required(r, "q")
-	if err != nil {
-		return nil, err
-	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	limit, err := intParam(r, "limit", 50)
 	if err != nil {
 		return nil, err
 	}
-	opts := graph.SearchOptions{Limit: min(limit, 200)}
+	opts := graph.SearchOptions{Limit: min(limit, 500)}
 	for _, k := range strings.Split(r.URL.Query().Get("kind"), ",") {
 		if k != "" {
 			opts.Kinds = append(opts.Kinds, graph.NodeKind(k))
 		}
+	}
+	if q == "" {
+		if len(opts.Kinds) == 0 {
+			return nil, badRequest("give q, kind, or both")
+		}
+		nodes, err := s.r.Graph.Nodes(r.Context(), graph.NodeFilter{Kinds: opts.Kinds})
+		if len(nodes) > opts.Limit {
+			nodes = nodes[:opts.Limit]
+		}
+		return nonNil(nodes), err
 	}
 	nodes, err := s.r.Graph.Search(r.Context(), q, opts)
 	return nonNil(nodes), err
