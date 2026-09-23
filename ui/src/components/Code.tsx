@@ -7,14 +7,15 @@ import type { Theme } from "../theme";
 import { useAsync } from "../useAsync";
 
 // Code shows lines [from, to] of a module file, highlighted, with the
-// lines in [markFrom, markTo] marked and identifiers linked to their
-// definitions.
+// lines in [markFrom, markTo] and those in marks marked and identifiers
+// linked to their definitions.
 export function Code({
   file,
   from = 1,
   to,
   markFrom,
   markTo,
+  marks,
   theme,
   scrollToMark,
 }: {
@@ -23,6 +24,7 @@ export function Code({
   to?: number;
   markFrom?: number;
   markTo?: number;
+  marks?: number[];
   theme: Theme;
   scrollToMark?: boolean;
 }) {
@@ -83,7 +85,7 @@ export function Code({
     <div className="code">
       {source.data.lines.map((text, i) => {
         const n = start + i;
-        const isMarked = markFrom !== undefined && n >= markFrom && n <= (markTo ?? markFrom);
+        const isMarked = (markFrom !== undefined && n >= markFrom && n <= (markTo ?? markFrom)) || !!marks?.includes(n);
         const isFirstMark = n === markFrom;
         return (
           <div key={n} ref={isFirstMark ? marked : undefined} className={`line${isMarked ? " marked" : ""}`}>

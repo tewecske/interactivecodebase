@@ -68,11 +68,11 @@ const responses: Record<string, unknown> = {
     node: { id: "route:POST /{lang}/notes", kind: "route", name: "POST /{lang}/notes", pos: {} },
     edge: { id: 0, from: "", to: "", kind: "", pos: {} },
     children: [{
-      node: { id: "method:h", kind: "method", name: "(*noteHandler).create", pos: { file: "internal/web/handlers.go", startLine: 88 } },
+      node: { id: "method:h", kind: "method", name: "(*noteHandler).create", pos: { file: "internal/web/handlers.go", startLine: 88, endLine: 90 } },
       edge: { id: 1, from: "", to: "", kind: "handled_by", pos: {} },
       children: [{
         node: { id: "sink.sql:x", kind: "sink.sql", name: "(*sql.Tx).ExecContext", detail: "INSERT INTO audit_events", pos: {} },
-        edge: { id: 2, from: "", to: "", kind: "calls", pos: {} },
+        edge: { id: 2, from: "", to: "", kind: "calls", pos: { file: "internal/web/handlers.go", startLine: 89 } },
         children: [{ node: { id: "sql_table:audit_events", kind: "sql_table", name: "audit_events", pos: {} }, edge: { id: 3, from: "", to: "", kind: "queries", pos: {}, attrs: { op: "insert" } } }],
       }],
     }],
@@ -80,6 +80,10 @@ const responses: Record<string, unknown> = {
   [`api/source?${new URLSearchParams({ file: "internal/web/handlers.go", start: "1" })}`]: {
     file: "internal/web/handlers.go", start: 1, end: 3, total: 3,
     lines: ["package web", "", "func (h *noteHandler) user() { h.auth.Authenticate(nil) }"],
+  },
+  [`api/source?${new URLSearchParams({ file: "internal/web/handlers.go", start: "88", end: "90" })}`]: {
+    file: "internal/web/handlers.go", start: 88, end: 90, total: 120,
+    lines: ["func (h *noteHandler) create() {", "\th.tx.ExecContext(ctx, q)", "}"],
   },
   [`api/refs?${new URLSearchParams({ file: "internal/web/handlers.go" })}`]: [
     { line: 3, col: 39, endCol: 51, name: "Authenticate", kind: "method", target: { file: "internal/web/auth.go", startLine: 32 }, node: "method:(*example.com/webapp/internal/web.Authenticator).Authenticate" },
@@ -238,6 +242,22 @@ describe("App", () => {
     const tree = await render("#/flow?" + new URLSearchParams({ route: "POST /{lang}/notes", mode: "tree" }));
     expect(tree.textContent).toContain("insert table");
     expect(tree.textContent).toContain("INSERT INTO audit_events");
+
+    // Each step with a position expands to its code, the call sites marked;
+    // "Expand all code" opens every one.
+    expect(tree.querySelector(".snippet")).toBeNull();
+    const toggle = tree.querySelector<HTMLButtonElement>("button.snippet-toggle")!;
+    await act(async () => toggle.click());
+    await act(async () => new Promise((r) => setTimeout(r, 0)));
+    const lines = [...tree.querySelectorAll(".snippet .code .line")];
+    expect(lines.map((l) => l.textContent)).toEqual(["88func (h *noteHandler) create() {", "89\th.tx.ExecContext(ctx, q)", "90}"]);
+    expect(lines.map((l) => l.classList.contains("marked"))).toEqual([false, true, false]);
+    await act(async () => toggle.click());
+    expect(tree.querySelector(".snippet")).toBeNull();
+    const expandAll = [...tree.querySelectorAll("button")].find((b) => b.textContent === "Expand all code")!;
+    await act(async () => expandAll.click());
+    await act(async () => new Promise((r) => setTimeout(r, 0)));
+    expect(tree.querySelectorAll(".snippet")).toHaveLength(1);
   });
 
   it("shows highlighted code with identifiers linked to definitions", async () => {
