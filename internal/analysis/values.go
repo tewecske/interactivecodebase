@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"cmp"
 	"go/constant"
 	"go/token"
 	"regexp"
@@ -340,7 +341,12 @@ func (e *evaluator) param(p *ssa.Parameter, depth int) []string {
 		return []string{Unknown}
 	}
 	var out []string
-	for _, in := range node.In {
+	// Call-graph edges come in map order; sort so results are stable.
+	ins := slices.Clone(node.In)
+	slices.SortFunc(ins, func(x, y *callgraph.Edge) int {
+		return cmp.Or(cmp.Compare(x.Caller.Func.String(), y.Caller.Func.String()), cmp.Compare(edgePos(x), edgePos(y)))
+	})
+	for _, in := range ins {
 		if in.Site == nil {
 			continue
 		}
