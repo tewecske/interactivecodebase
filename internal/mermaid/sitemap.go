@@ -3,6 +3,7 @@ package mermaid
 import (
 	"cmp"
 	"slices"
+	"strings"
 
 	"github.com/tewecske/interactivecodebase/internal/graph"
 )
@@ -21,6 +22,11 @@ type SiteMapOptions struct {
 	// GETOnly keeps only GET routes (pages and links), dropping form and
 	// redirect targets that are not GET.
 	GETOnly bool
+	// Access keeps only these groups (public, optional, guest,
+	// authenticated, admin); empty keeps all.
+	Access []string
+	// Match keeps only routes whose name contains it.
+	Match string
 }
 
 // SiteMap draws routes grouped by access level, with navigation edges:
@@ -37,6 +43,11 @@ func SiteMap(routes []graph.Node, nav []graph.Edge, opts SiteMapOptions) Diagram
 		group := r.Attrs["access"]
 		if group == "public" && r.Attrs["optionalAuth"] == "true" {
 			group = "optional"
+		}
+		if (len(opts.Access) > 0 && !slices.Contains(opts.Access, group)) ||
+			(opts.Match != "" && !strings.Contains(strings.ToLower(r.Name), strings.ToLower(opts.Match))) {
+			delete(keep, r.ID)
+			continue
 		}
 		groups[group] = append(groups[group], r)
 	}

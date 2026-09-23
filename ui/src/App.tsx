@@ -3,6 +3,7 @@ import { href, navigate, useLocation, type Location } from "./router";
 import { useTheme, type Theme } from "./theme";
 import { Home } from "./views/Home";
 import { NodeView } from "./views/Node";
+import { SiteMap } from "./views/SiteMap";
 
 export interface ViewProps {
   params: Record<string, string>;
@@ -13,6 +14,9 @@ export interface ViewProps {
 export const views: Record<string, { title: (p: Record<string, string>) => string; render: (v: ViewProps) => ReactNode }> = {
   home: { title: () => "Overview", render: ({ theme }) => <Home theme={theme} /> },
   node: { title: (p) => p.id?.slice(p.id.indexOf(":") + 1) ?? "Node", render: ({ params }) => <NodeView id={params.id} /> },
+  sitemap: { title: () => "Site map", render: ({ params, theme }) => <SiteMap params={params} theme={theme} /> },
+  // Replaced by the page drill-down in #16.
+  route: { title: (p) => p.id ?? "Route", render: ({ params }) => <NodeView id={`route:${params.id}`} /> },
 };
 
 const nav = [

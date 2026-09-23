@@ -186,6 +186,7 @@ func TestDiagramsGolden(t *testing.T) {
 	tests := []struct{ name, path string }{
 		{"sitemap", "/api/diagrams/sitemap"},
 		{"sitemap-get", "/api/diagrams/sitemap?get=1"},
+		{"sitemap-filtered", "/api/diagrams/sitemap?get=1&access=authenticated,admin&q=notes"},
 		{"flow-post-notes", "/api/diagrams/flow?route=" + q("POST /{lang}/notes")},
 		{"flow-share", "/api/diagrams/flow?route=" + q("POST /{lang}/notes/{id}/share")},
 		{"types-notes-service-create", "/api/diagrams/types?id=" + q("method:(*example.com/webapp/internal/notes.Service).Create")},
