@@ -1,0 +1,77 @@
+[
+  {
+    "method": "GET",
+    "pattern": "/",
+    "handler": "example.com/muxapp.home",
+    "access": "public",
+    "middleware": [
+      "example.com/muxapp.logging"
+    ]
+  },
+  {
+    "method": "POST",
+    "pattern": "/notes",
+    "handler": "example.com/muxapp.createNote",
+    "access": "public",
+    "middleware": [
+      "example.com/muxapp.logging"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/notes/{id}",
+    "handler": "example.com/muxapp.note",
+    "access": "public",
+    "middleware": [
+      "example.com/muxapp.logging"
+    ]
+  },
+  {
+    "method": "PUT",
+    "pattern": "/notes/{id}",
+    "handler": "example.com/muxapp.note",
+    "access": "public",
+    "middleware": [
+      "example.com/muxapp.logging"
+    ]
+  },
+  {
+    "method": "ANY",
+    "pattern": "/api/me",
+    "handler": "example.com/muxapp.me",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/muxapp.logging",
+      "example.com/muxapp.requireAuth"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/api/items",
+    "handler": "(example.com/muxapp.itemsHandler).ServeHTTP",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/muxapp.logging",
+      "example.com/muxapp.requireAuth"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "pattern": "/notes/{id}",
+    "handler": "example.com/muxapp.deleteNote",
+    "access": "public",
+    "middleware": [
+      "example.com/muxapp.logging"
+    ]
+  },
+  {
+    "method": "ANY",
+    "pattern": "/static/",
+    "handler": "net/http.FileServer",
+    "access": "public",
+    "middleware": [
+      "example.com/muxapp.logging"
+    ],
+    "static": true
+  }
+]

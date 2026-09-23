@@ -1,0 +1,120 @@
+[
+  {
+    "method": "GET",
+    "pattern": "/",
+    "handler": "(*example.com/chiapp.server).home",
+    "access": "public",
+    "middleware": [
+      "example.com/chiapp.logging"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/notes",
+    "handler": "(*example.com/chiapp.server).listNotes",
+    "access": "public",
+    "middleware": [
+      "example.com/chiapp.logging"
+    ]
+  },
+  {
+    "method": "POST",
+    "pattern": "/notes",
+    "handler": "(*example.com/chiapp.server).createNote",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/chiapp.logging",
+      "example.com/chiapp.requireAuth"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/notes/{id}",
+    "handler": "(*example.com/chiapp.server).getNote",
+    "access": "public",
+    "middleware": [
+      "example.com/chiapp.logging"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "pattern": "/notes/{id}",
+    "handler": "(*example.com/chiapp.server).deleteNote",
+    "access": "public",
+    "middleware": [
+      "example.com/chiapp.logging"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/account",
+    "handler": "(*example.com/chiapp.server).account",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/chiapp.logging",
+      "example.com/chiapp.requireAuth"
+    ]
+  },
+  {
+    "method": "PUT",
+    "pattern": "/account",
+    "handler": "(*example.com/chiapp.server).updateAccount",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/chiapp.logging",
+      "example.com/chiapp.requireAuth"
+    ]
+  },
+  {
+    "method": "ANY",
+    "pattern": "/static/*",
+    "handler": "net/http.FileServer",
+    "access": "public",
+    "middleware": [
+      "example.com/chiapp.logging"
+    ],
+    "static": true
+  },
+  {
+    "method": "GET",
+    "pattern": "/admin",
+    "handler": "(*example.com/chiapp.server).adminHome",
+    "access": "admin",
+    "middleware": [
+      "example.com/chiapp.logging",
+      "example.com/chiapp.requireAuth",
+      "example.com/chiapp.requireAdmin"
+    ]
+  },
+  {
+    "method": "POST",
+    "pattern": "/admin/users/{id}/ban",
+    "handler": "(*example.com/chiapp.server).banUser",
+    "access": "admin",
+    "middleware": [
+      "example.com/chiapp.logging",
+      "example.com/chiapp.requireAuth",
+      "example.com/chiapp.requireAdmin"
+    ]
+  },
+  {
+    "method": "GET",
+    "pattern": "/api/me",
+    "handler": "(*example.com/chiapp.server).me",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/chiapp.logging",
+      "example.com/chiapp.requireAuth"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "pattern": "/api/me",
+    "handler": "(*example.com/chiapp.server).updateMe",
+    "access": "authenticated",
+    "middleware": [
+      "example.com/chiapp.logging",
+      "example.com/chiapp.requireAuth"
+    ]
+  }
+]

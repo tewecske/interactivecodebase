@@ -11,7 +11,8 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-// Route is one method + pattern registered on a net/http ServeMux.
+// Route is one method + pattern registered on a net/http ServeMux or a
+// router library (chi, gin, echo, gorilla/mux).
 type Route struct {
 	// Method is the HTTP method, or "ANY" when the pattern has none.
 	Method string
@@ -74,24 +75,8 @@ var langSegment = regexp.MustCompile(`^[a-z]{2}(-[A-Za-z]{2,4})?$`)
 // discoverRoutes finds every route registration in the module.
 func discoverRoutes(r *Result, funcs []*ssa.Function) []Route {
 	var routes []Route
-	for _, fn := range funcs {
-		for _, b := range fn.Blocks {
-			for _, instr := range b.Instrs {
-				call, ok := instr.(*ssa.Call)
-				if !ok {
-					continue
-				}
-				callee := call.Common().StaticCallee()
-				if callee == nil {
-					continue
-				}
-				patternArg, ok := registrations[callee.String()]
-				if !ok {
-					continue
-				}
-				routes = append(routes, registrationRoutes(r, call, patternArg)...)
-			}
-		}
+	for _, d := range routerDetectors {
+		routes = append(routes, d.routes(r, funcs)...)
 	}
 	slices.SortFunc(routes, func(a, b Route) int {
 		return cmp.Or(cmp.Compare(a.Pos, b.Pos), cmp.Compare(a.Key(), b.Key()))
@@ -213,7 +198,10 @@ func resolveHandler(v ssa.Value, depth int) resolvedHandler {
 	case *ssa.MakeClosure:
 		return resolvedHandler{handler: closureTarget(v.Fn.(*ssa.Function))}
 	case *ssa.MakeInterface:
-		return resolveHandler(v.X, depth+1)
+		if h := resolveHandler(v.X, depth+1); h.handler != nil {
+			return h
+		}
+		return resolvedHandler{handler: serveHTTPMethod(v)}
 	case *ssa.ChangeType:
 		return resolveHandler(v.X, depth+1)
 	case *ssa.Convert:
@@ -255,6 +243,25 @@ func resolveFactory(call *ssa.Call, depth int) resolvedHandler {
 		}
 	}
 	return resolvedHandler{}
+}
+
+// serveHTTPMethod returns the ServeHTTP method of a type other than
+// net/http's converted to an http.Handler, e.g. itemsHandler{}.
+func serveHTTPMethod(mi *ssa.MakeInterface) *ssa.Function {
+	t := mi.X.Type()
+	named, ok := types.Unalias(t).(*types.Named)
+	if p, isPtr := types.Unalias(t).(*types.Pointer); isPtr {
+		named, ok = types.Unalias(p.Elem()).(*types.Named)
+	}
+	if !ok || named.Obj().Pkg() == nil || named.Obj().Pkg().Path() == "net/http" || mi.Parent() == nil {
+		return nil
+	}
+	prog := mi.Parent().Prog
+	sel := prog.MethodSets.MethodSet(t).Lookup(nil, "ServeHTTP")
+	if sel == nil {
+		return nil
+	}
+	return prog.MethodValue(sel)
 }
 
 // closureTarget returns the method behind a bound method value
