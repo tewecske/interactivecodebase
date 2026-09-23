@@ -103,7 +103,7 @@ ul.edges li { padding: 2px 0; }
 details summary { cursor: pointer; padding: 2px 0; }
 .diagram { position: relative; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); overflow: hidden; }
 .diagram-tools { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
-.diagram-viewport { overflow: hidden; min-height: 300px; max-height: 75vh; cursor: grab; touch-action: none; }
+.diagram-viewport { overflow: hidden; height: calc(100vh - 220px); min-height: 480px; cursor: grab; touch-action: none; }
 .diagram-viewport:active { cursor: grabbing; }
 .diagram-canvas { transform-origin: 0 0; padding: 16px; width: max-content; }
 .diagram-canvas svg { max-width: none !important; }
@@ -131,7 +131,7 @@ table.routes td .badge { margin-left: 6px; }
 a.button { border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; background: var(--panel); color: var(--text); }
 a.button:hover { text-decoration: none; border-color: var(--accent); }
 .flow-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
-ol.steps { margin: 0; padding-left: 28px; font-size: 12.5px; max-height: 75vh; overflow: auto; }
+ol.steps { margin: 0; padding-left: 28px; font-size: 12.5px; max-height: calc(100vh - 220px); overflow: auto; }
 ol.steps li { padding: 2px 0; word-break: break-all; }
 ul.tree, ul.tree ul { list-style: none; padding-left: 18px; border-left: 1px solid var(--border); margin: 2px 0; }
 ul.tree li { padding: 2px 0; }

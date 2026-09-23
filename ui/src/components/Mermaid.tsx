@@ -20,6 +20,9 @@ export function MermaidView({
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
   const drag = useRef<{ x: number; y: number } | null>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  // fit is the scale that makes the diagram as wide as the viewport.
+  const fit = useRef(1);
   const baseId = useId().replace(/[^a-zA-Z0-9]/g, "");
 
   useEffect(() => {
@@ -39,6 +42,8 @@ export function MermaidView({
         if (!live || !host.current) return;
         host.current.innerHTML = svg;
         setError(null);
+        fit.current = fitScale(host.current, viewport.current);
+        setView({ x: 0, y: 0, scale: fit.current });
         bindClicks(host.current, diagram.ids, onNodeClick);
       })
       .catch((e: Error) => live && setError(e.message));
@@ -47,17 +52,17 @@ export function MermaidView({
     };
   }, [diagram, theme, baseId, onNodeClick]);
 
-  useEffect(() => setView({ x: 0, y: 0, scale: 1 }), [diagram]);
-
   return (
     <div className="diagram">
       <div className="diagram-tools">
         <button onClick={() => setView((v) => ({ ...v, scale: v.scale * 1.25 }))} title="Zoom in">+</button>
         <button onClick={() => setView((v) => ({ ...v, scale: v.scale / 1.25 }))} title="Zoom out">−</button>
-        <button onClick={() => setView({ x: 0, y: 0, scale: 1 })} title="Reset view">⟲</button>
+        <button onClick={() => setView({ x: 0, y: 0, scale: fit.current })} title="Fit to width">⟲</button>
+        <button onClick={() => setView({ x: 0, y: 0, scale: 1 })} title="Actual size">1:1</button>
       </div>
       {error && <pre className="error">Diagram error: {error}</pre>}
       <div
+        ref={viewport}
         className="diagram-viewport"
         onWheel={(e) => {
           if (!e.ctrlKey && !e.metaKey) return;
@@ -83,6 +88,21 @@ export function MermaidView({
       </div>
     </div>
   );
+}
+
+// fitScale gives the rendered SVG its natural size (Mermaid emits
+// width="100%", which collapses in a max-content box) and returns the
+// scale that fits it to the viewport's width, between 0.2 and 2.
+function fitScale(host: HTMLElement, viewport: HTMLElement | null): number {
+  const svg = host.querySelector("svg");
+  const box = svg?.viewBox?.baseVal;
+  if (!svg || !box || !box.width || !box.height) return 1;
+  svg.setAttribute("width", String(box.width));
+  svg.setAttribute("height", String(box.height));
+  svg.style.maxWidth = "none";
+  const available = (viewport?.clientWidth ?? 0) - 32; // canvas padding
+  if (available <= 0) return 1;
+  return Math.min(2, Math.max(0.2, available / box.width));
 }
 
 // bindClicks finds the rendered element of each mapped Mermaid node: its
