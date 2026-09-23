@@ -99,3 +99,38 @@ func TestClosed(t *testing.T) {
 		t.Errorf("With after Close: %v", err)
 	}
 }
+
+func TestStatusReportsProgressAndErrors(t *testing.T) {
+	fail := false
+	analyze, _ := fake(t, &fail)
+	first, _ := analyze(t.Context())
+	c := New(first, nil, analyze)
+	defer func() { _ = c.Close() }()
+	ch, unsubscribe := c.Subscribe()
+	defer unsubscribe()
+
+	if s := c.Status(); s.Generation != 1 || s.Analyzing || s.Error != "" {
+		t.Errorf("initial status = %+v", s)
+	}
+	if err := c.Reanalyze(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	// The subscriber may have missed "analyzing"; it keeps the latest.
+	if s := <-ch; s.Generation != 2 || s.Analyzing {
+		t.Errorf("status after reanalysis = %+v", s)
+	}
+
+	fail = true
+	_ = c.Reanalyze(t.Context())
+	s := <-ch
+	if s.Generation != 2 || s.Analyzing || s.Error != "does not build" {
+		t.Errorf("status after failure = %+v", s)
+	}
+	fail = false
+	if err := c.Reanalyze(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if s := c.Status(); s.Generation != 3 || s.Error != "" {
+		t.Errorf("a success should clear the error: %+v", s)
+	}
+}

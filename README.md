@@ -21,6 +21,7 @@ bin/icb --help
 bin/icb version
 bin/icb analyze ../goweb       # analyze a module and print a summary
 bin/icb serve ../goweb         # web UI, JSON API and MCP (at /mcp) on 127.0.0.1:8080
+bin/icb serve -watch ../goweb  # ... and re-analyze when sources change
 bin/icb mcp ../goweb           # MCP over stdio, for AI agents
 ```
 
@@ -51,7 +52,8 @@ The web UI is built with Node 22+ by `make ui` (part of `make build`) and embedd
 
 ## JSON API
 
-`icb serve` analyzes the module once and serves:
+`icb serve` analyzes the module once (with `-watch`, again whenever `.go`, template or `.sql` files, `go.mod`
+or the git HEAD change) and serves:
 
 | Endpoint | |
 |---|---|
@@ -65,6 +67,10 @@ The web UI is built with Node 22+ by `make ui` (part of `make build`) and embedd
 | `/api/tables`, `/api/table?name=` | tables; a table's columns, foreign keys, queries and routes |
 | `/api/search?q=&kind=` | full-text search over nodes |
 | `/api/diagrams/{sitemap,flow,types,er}` | Mermaid source plus the graph IDs behind its nodes |
+| `/api/status`, `/api/events` | analysis generation, progress and last error; `events` streams changes (SSE) |
+
+A failed re-analysis (say, a file that does not compile) is reported while the last good analysis stays in
+service; the UI shows the status in its header and reloads its data when a new analysis is ready.
 
 `route` takes a route key such as `POST /{lang}/groups`. Requests need the access token (see below).
 

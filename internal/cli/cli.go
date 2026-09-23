@@ -21,9 +21,6 @@ const (
 // Version is the icb version, overridden at build time via -ldflags.
 var Version = "dev"
 
-// errNotImplemented marks subcommands whose behaviour lands in a later issue.
-var errNotImplemented = errors.New("not implemented yet")
-
 type command struct {
 	name    string
 	summary string

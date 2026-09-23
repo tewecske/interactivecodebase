@@ -8,13 +8,16 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
+	"github.com/tewecske/interactivecodebase/internal/live"
 	"github.com/tewecske/interactivecodebase/internal/mcpserver"
 	"github.com/tewecske/interactivecodebase/internal/server"
+	"github.com/tewecske/interactivecodebase/internal/watch"
 	"github.com/tewecske/interactivecodebase/internal/webui"
 )
 
@@ -38,17 +41,14 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 	if *noAuth && !isLoopback(*addr) {
 		return fmt.Errorf("-insecure-no-auth is only allowed on a loopback address, not %s: icb serves your source code", *addr)
 	}
-	if *watch {
-		return fmt.Errorf("-watch: %w (see #25)", errNotImplemented)
-	}
 	cur, err := openLive(ctx, fs.Arg(0))
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, cur.Close()) }()
-	var module, took string
+	var module, took, root string
 	_ = cur.With(func(r *analysis.Result) error {
-		module, took = r.Module, round(r.Stats.Total()).String()
+		module, took, root = r.Module, round(r.Stats.Total()).String(), r.Dir
 		return nil
 	})
 
@@ -70,7 +70,17 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 		}
 		handler = server.RequireToken(server.AuthConfig{Token: *token, Secure: *certFile != ""}, handler)
 	}
-	srv := &http.Server{Handler: server.SecurityHeaders(handler), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{
+		Handler:           server.SecurityHeaders(handler),
+		ReadHeaderTimeout: 10 * time.Second,
+		// Requests end with ctx, so open event streams do not hold up
+		// shutdown.
+		BaseContext: func(net.Listener) context.Context { return ctx },
+	}
+	if *watch {
+		go watchAndReanalyze(ctx, e, cur, root)
+		fmt.Fprintf(e.stdout, "icb: watching %s for changes\n", root)
+	}
 
 	scheme := "http"
 	if *certFile != "" {
@@ -138,3 +148,28 @@ func displayAddr(a net.Addr) string {
 
 // uiHandler serves the embedded web UI, or nil if it was not built in.
 func uiHandler() http.Handler { return webui.Handler() }
+
+// watchAndReanalyze re-analyzes the module whenever its sources change,
+// until ctx ends. A failed analysis is reported and the last good one
+// stays in service.
+func watchAndReanalyze(ctx context.Context, e *env, cur *live.Current, root string) {
+	watch.Run(ctx, root, watch.Options{}, func(paths []string) {
+		fmt.Fprintf(e.stdout, "icb: %d file(s) changed (%s); re-analyzing\n", len(paths), relTo(root, paths[0]))
+		start := time.Now()
+		if err := cur.Reanalyze(ctx); err != nil {
+			if ctx.Err() == nil {
+				fmt.Fprintf(e.stderr, "icb: re-analysis failed, still serving the previous analysis: %v\n", err)
+			}
+			return
+		}
+		fmt.Fprintf(e.stdout, "icb: re-analyzed in %s (generation %d)\n", round(time.Since(start)), cur.Generation())
+	})
+}
+
+// relTo shows path relative to root when it can.
+func relTo(root, path string) string {
+	if rel, err := filepath.Rel(root, path); err == nil {
+		return rel
+	}
+	return path
+}

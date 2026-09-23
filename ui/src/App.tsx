@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { SearchBox } from "./components/Search";
 import { href, useLocation, type Location } from "./router";
+import { Generation, StatusIndicator, useAnalysisStatus } from "./status";
 import { useTheme, type Theme } from "./theme";
 import { Home } from "./views/Home";
 import { CodeView } from "./views/CodeView";
@@ -40,6 +41,7 @@ export function App() {
   const loc = useLocation();
   const [theme, toggleTheme] = useTheme();
   const [trail, setTrail] = useState<Location[]>([]);
+  const status = useAnalysisStatus();
 
   // Keep a breadcrumb of the last few distinct locations.
   useEffect(() => {
@@ -52,38 +54,41 @@ export function App() {
 
   const view = views[loc.view];
   return (
-    <div className="app">
-      <header>
-        <a className="brand" href={href("home")}>
-          icb
-        </a>
-        <SearchBox />
-        <button className="theme" onClick={toggleTheme} title="Toggle light/dark">
-          {theme === "dark" ? "☀" : "☾"}
-        </button>
-      </header>
-      <nav>
-        {nav.map((n) => (
-          <a key={n.view} href={href(n.view)} className={loc.view === n.view ? "active" : ""}>
-            {n.label}
+    <Generation.Provider value={status?.generation ?? 0}>
+      <div className="app">
+        <header>
+          <a className="brand" href={href("home")}>
+            icb
           </a>
-        ))}
-      </nav>
-      <main>
-        <div className="breadcrumb">
-          {trail.map((l, i) => {
-            const t = views[l.view]?.title(l.params) ?? l.view;
-            return i === trail.length - 1 ? (
-              <span key={i}>{t}</span>
-            ) : (
-              <a key={i} href={href(l.view, l.params)}>
-                {t}
-              </a>
-            );
-          })}
-        </div>
-        {view ? view.render({ params: loc.params, theme }) : <p className="muted">This view is not built yet.</p>}
-      </main>
-    </div>
+          <SearchBox />
+          <StatusIndicator status={status} />
+          <button className="theme" onClick={toggleTheme} title="Toggle light/dark">
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
+        </header>
+        <nav>
+          {nav.map((n) => (
+            <a key={n.view} href={href(n.view)} className={loc.view === n.view ? "active" : ""}>
+              {n.label}
+            </a>
+          ))}
+        </nav>
+        <main>
+          <div className="breadcrumb">
+            {trail.map((l, i) => {
+              const t = views[l.view]?.title(l.params) ?? l.view;
+              return i === trail.length - 1 ? (
+                <span key={i}>{t}</span>
+              ) : (
+                <a key={i} href={href(l.view, l.params)}>
+                  {t}
+                </a>
+              );
+            })}
+          </div>
+          {view ? view.render({ params: loc.params, theme }) : <p className="muted">This view is not built yet.</p>}
+        </main>
+      </div>
+    </Generation.Provider>
   );
 }
