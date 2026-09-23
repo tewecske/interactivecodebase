@@ -20,8 +20,8 @@ make build            # builds bin/icb
 bin/icb --help
 bin/icb version
 bin/icb analyze ../goweb       # analyze a module and print a summary
-bin/icb serve ../goweb         # JSON API (web UI and MCP to come) on 127.0.0.1:8080
-bin/icb mcp ../goweb           # MCP over stdio, for AI agents (not yet)
+bin/icb serve ../goweb         # web UI, JSON API and MCP (at /mcp) on 127.0.0.1:8080
+bin/icb mcp ../goweb           # MCP over stdio, for AI agents
 ```
 
 Querying the graph from the terminal:
@@ -68,6 +68,19 @@ The web UI is built with Node 22+ by `make ui` (part of `make build`) and embedd
 
 `route` takes a route key such as `POST /{lang}/groups`. Remote access with authentication comes with #23;
 until then keep the default `127.0.0.1` address.
+
+## MCP
+
+`icb mcp <dir>` serves the Model Context Protocol over stdio; `icb serve` also serves it over streamable HTTP at
+`/mcp`. For Claude Code:
+
+```sh
+claude mcp add icb -- /path/to/icb mcp /path/to/your/module
+```
+
+Tools: `list_routes`, `get_route`, `get_flow` (text or Mermaid), `get_node`, `get_source`, `find_callers`,
+`find_callees`, `find_paths`, `routes_touching_table`, `list_tables`, `get_table` (text or Mermaid), `search`,
+`reanalyze`. Resources: `icb://routes`, `icb://schema`.
 
 ## Development
 

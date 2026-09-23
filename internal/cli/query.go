@@ -29,9 +29,6 @@ A <node> is a node ID ("method:(*example.com/app.T).M"), the ID without its
 kind prefix ("(*example.com/app.T).M"), or search text matching one node
 (or matching the end of exactly one node's ID).`
 
-// maxCandidates bounds how many matches an ambiguous node argument lists.
-const maxCandidates = 10
-
 func runQuery(ctx context.Context, e *env, args []string) (err error) {
 	fs := newFlagSet(e, "query", "icb query [flags] <dir> <command> [args]")
 	asJSON := fs.Bool("json", false, "print results as JSON")
@@ -147,56 +144,9 @@ type querier struct {
 	json bool
 }
 
-var errNodeNotFound = errors.New("no node matches")
-
-// resolve finds the node an argument refers to: an exact ID, an ID without
-// its kind prefix, or search text matching exactly one node.
+// resolve finds the node an argument refers to (see graph.Resolve).
 func (q *querier) resolve(ctx context.Context, arg string) (graph.Node, error) {
-	candidates := []string{arg}
-	for _, k := range []graph.NodeKind{graph.KindRoute, graph.KindMethod, graph.KindFunc, graph.KindInterfaceCall, graph.KindType} {
-		candidates = append(candidates, graph.NodeID(k, arg))
-	}
-	for _, id := range candidates {
-		n, err := q.g.Node(ctx, id)
-		if err == nil {
-			return n, nil
-		}
-		if !errors.Is(err, graph.ErrNotFound) {
-			return graph.Node{}, err
-		}
-	}
-	nodes, err := q.g.Search(ctx, arg, graph.SearchOptions{Limit: maxCandidates + 1})
-	if err != nil {
-		return graph.Node{}, err
-	}
-	switch len(nodes) {
-	case 0:
-		return graph.Node{}, fmt.Errorf("%w %q", errNodeNotFound, arg)
-	case 1:
-		return nodes[0], nil
-	}
-	// Prefer the one node whose ID ends with the text: a qualified name
-	// like "sql.Tx).ExecContext" means that function, not a node that
-	// merely mentions it.
-	var suffix []graph.Node
-	for _, n := range nodes {
-		if strings.HasSuffix(n.ID, arg) {
-			suffix = append(suffix, n)
-		}
-	}
-	if len(suffix) == 1 {
-		return suffix[0], nil
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "%q matches several nodes; use an ID:", arg)
-	for i, n := range nodes {
-		if i == maxCandidates {
-			b.WriteString("\n  ...")
-			break
-		}
-		b.WriteString("\n  " + n.ID)
-	}
-	return graph.Node{}, errors.New(b.String())
+	return q.g.Resolve(ctx, arg)
 }
 
 func (q *querier) nodes(nodes []graph.Node) error {

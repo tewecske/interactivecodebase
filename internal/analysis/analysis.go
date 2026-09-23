@@ -180,6 +180,11 @@ func load(ctx context.Context, dir string, tests bool) ([]*packages.Package, err
 			errs = append(errs, e)
 		}
 	})
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "does not contain main module") {
+			return nil, fmt.Errorf("analysis: %s is not inside a Go module (no go.mod found)", dir)
+		}
+	}
 	if len(errs) > 0 {
 		const show = 5
 		if len(errs) > show {

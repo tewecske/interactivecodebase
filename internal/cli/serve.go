@@ -8,6 +8,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/tewecske/interactivecodebase/internal/analysis"
+	"github.com/tewecske/interactivecodebase/internal/mcpserver"
 	"github.com/tewecske/interactivecodebase/internal/server"
 	"github.com/tewecske/interactivecodebase/internal/webui"
 )
@@ -25,21 +29,27 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 	if *watch {
 		return fmt.Errorf("-watch: %w (see #25)", errNotImplemented)
 	}
-	r, release, err := openAnalysis(ctx, fs.Arg(0))
+	cur, err := openLive(ctx, fs.Arg(0))
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, release()) }()
+	defer func() { err = errors.Join(err, cur.Close()) }()
+	var module, took string
+	_ = cur.With(func(r *analysis.Result) error {
+		module, took = r.Module, round(r.Stats.Total()).String()
+		return nil
+	})
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{
-		Handler:           server.New(r, uiHandler()),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	fmt.Fprintf(e.stdout, "icb: %s analyzed in %v; serving http://%s\n", r.Module, round(r.Stats.Total()), ln.Addr())
+	mux := http.NewServeMux()
+	mcpSrv := mcpserver.New(cur)
+	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return mcpSrv }, nil))
+	mux.Handle("/", server.NewLive(cur, uiHandler()))
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	fmt.Fprintf(e.stdout, "icb: %s analyzed in %s; serving http://%s (MCP at /mcp)\n", module, took, ln.Addr())
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
 	select {

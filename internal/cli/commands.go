@@ -72,17 +72,6 @@ func checkDir(dir string) error {
 	return nil
 }
 
-func runMCP(_ context.Context, e *env, args []string) error {
-	fs := newFlagSet(e, "mcp", "icb mcp [flags] <dir>")
-	if err := parse(fs, args, 1); err != nil {
-		return err
-	}
-	if err := checkDir(fs.Arg(0)); err != nil {
-		return err
-	}
-	return fmt.Errorf("%w (see #21)", errNotImplemented)
-}
-
 func runVersion(_ context.Context, e *env, args []string) error {
 	fs := newFlagSet(e, "version", "icb version")
 	if err := parse(fs, args, 0); err != nil {
