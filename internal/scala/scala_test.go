@@ -37,8 +37,12 @@ func TestArgs(t *testing.T) {
 	if got := sbtArgs([]string{"backend", "frontend"}); !reflect.DeepEqual(got[len(got)-2:], []string{"export backend/Compile/fullClasspath", "export frontend/Compile/fullClasspath"}) {
 		t.Errorf("sbtArgs(projects) = %v", got)
 	}
-	got := extractorArgs("/app", "/tmp/g.json", []module{{classes: []string{"/app/a", "/app/b"}, classpath: []string{"/x.jar", "/y.jar"}}})
-	want := []string{"--root", "/app", "-o", "/tmp/g.json", "--classpath", "/x.jar:/y.jar", "/app/a", "/app/b"}
+	guards := map[string]string{"app.Auth.user": "authenticated", "app.Auth.admin": "admin"}
+	got := extractorArgs("/app", "/tmp/g.json", guards, []module{{classes: []string{"/app/a", "/app/b"}, classpath: []string{"/x.jar", "/y.jar"}}})
+	want := []string{
+		"--root", "/app", "-o", "/tmp/g.json", "--guard", "app.Auth.admin=admin", "--guard", "app.Auth.user=authenticated",
+		"--classpath", "/x.jar:/y.jar", "/app/a", "/app/b",
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("extractorArgs = %v", got)
 	}

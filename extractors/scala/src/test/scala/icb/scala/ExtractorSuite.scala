@@ -8,7 +8,14 @@ class ExtractorSuite extends munit.FunSuite {
   private lazy val graph: Graph = {
     val classes = Paths.get(classOf[ExtractorSuite].getProtectionDomain.getCodeSource.getLocation.toURI)
     val classpath = System.getProperty("java.class.path").split(java.io.File.pathSeparator).toList
-    Main.run(Args(Paths.get("").toAbsolutePath, None, List(Module(classpath, List(classes.resolve("sample").toString)))))
+    Main.run(
+      Args(
+        Paths.get("").toAbsolutePath,
+        None,
+        List(Module(classpath, List(classes.resolve("sample").toString))),
+        guards = Map("Aspects.staff" -> "admin"),
+      )
+    )
   }
 
   private def node(id: String): Node = graph.node(id).getOrElse(fail(s"no node $id; have ${graph.allNodes.map(_.id).mkString("\n")}"))
@@ -41,7 +48,8 @@ class ExtractorSuite extends munit.FunSuite {
   }
 
   test("compiler-generated members are left out") {
-    val ids = graph.allNodes.map(_.id)
+    // Route handlers are numbered like closures ("routes$1").
+    val ids = graph.allNodes.map(_.id).filterNot(_.matches(".*\\$\\d+"))
     assert(!ids.exists(_.contains("copy")), ids)
     assert(!ids.exists(_.contains("<init>")), ids)
     assert(!ids.exists(_.contains("$")), ids)
@@ -83,6 +91,58 @@ class ExtractorSuite extends munit.FunSuite {
     assert(graph.toJson.startsWith("{\n  \"version\": 1,"))
   }
 
+  private def route(key: String): Node = node(s"route:$key")
+
+  test("routes: paths, parameters, endpoints and templates") {
+    val routes = graph.allNodes.filter(_.kind == "route").map(_.name)
+    assertEquals(
+      routes.sorted,
+      List(
+        "DELETE /api/items/{?}",
+        "GET /api/count",
+        "GET /api/items/{id}",
+        "GET /api/items/{page}",
+        "PUT /api/items/{name}",
+      ),
+    )
+    val page = route("GET /api/items/{page}")
+    assertEquals(page.attrs("method"), "GET")
+    assertEquals(page.attrs("pattern"), "/api/items/{page}")
+    assertEquals(page.pos.map(p => (p.file, p.startLine)), Some(("src/test/scala/sample/web/Web.scala", 39)))
+    assertEquals(route("DELETE /api/items/{?}").attrs.get("conditional"), Some("true"))
+  }
+
+  test("routes: handlers") {
+    // A lambda is a node of its own, numbered in its member; a lambda that
+    // only calls a def is that def.
+    assertEquals(route("GET /api/items/{page}").attrs("handler"), "sample.web.Web.open$1")
+    assertEquals(route("GET /api/count").attrs("handler"), "sample.web.Web.open$2")
+    assertEquals(route("PUT /api/items/{name}").attrs("handler"), "sample.web.Web.update")
+    assertEquals(route("GET /api/items/{id}").attrs("handler"), "sample.web.Web.closed$1")
+    assertEdge("route:GET /api/items/{page}", "func:sample.web.Web.open$1", "handled_by")
+    assertEdge("route:PUT /api/items/{name}", "func:sample.web.Web.update", "handled_by")
+    val h = node("func:sample.web.Web.open$1")
+    assertEquals(h.name, "Web.open$1")
+    assertEquals(h.detail, "(page: Int, _$1: Request): Response")
+    // The handler's calls are its own, not its member's.
+    assertEdge("func:sample.web.Web.open$1", "func:sample.web.Web.render", "calls")
+    assert(!hasEdge("func:sample.web.Web.open", "func:sample.web.Web.render", "calls"))
+    assertEdge("func:sample.web.Web.open", "func:sample.web.Web.prefix", "calls")
+  }
+
+  test("routes: middleware and access") {
+    val put = route("PUT /api/items/{name}")
+    assertEquals(put.attrs("muxMiddleware"), "sample.web.Aspects.audit")
+    assertEquals(put.attrs("middleware"), "sample.web.Aspects.requireUser")
+    assertEquals(put.attrs("access"), "authenticated")
+    assertEquals(put.attrs("accessEvidence"), "authenticated via sample.web.Aspects.requireUser")
+    assertEdge("route:PUT /api/items/{name}", "func:sample.web.Aspects.requireUser", "guarded_by")
+    assertEquals(route("GET /api/items/{page}").attrs("access"), "public")
+    assert(!route("GET /api/items/{page}").attrs.contains("middleware"))
+    // Configured in the test's guards.
+    assertEquals(route("DELETE /api/items/{?}").attrs("access"), "admin")
+  }
+
   test("arguments") {
     val args = Main.parse(List("--root", "r", "-o", "g.json", "--classpath", "a.jar:b.jar", "c1", "c2", "--classpath", "d.jar", "c3"))
     assertEquals(
@@ -92,6 +152,8 @@ class ExtractorSuite extends munit.FunSuite {
     assertEquals(args.map(_.out), Right(Some(Paths.get("g.json"))))
     assert(Main.parse(List("--root", "r")).isLeft)
     assert(Main.parse(List("--bogus")).isLeft)
+    assertEquals(Main.parse(List("--guard", "a.B.c=admin", "c1")).map(_.guards), Right(Map("a.B.c" -> "admin")))
+    assert(Main.parse(List("--guard", "a.B.c=root", "c1")).isLeft)
   }
 
   test("JSON strings are escaped") {

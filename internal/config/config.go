@@ -5,6 +5,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -98,7 +99,9 @@ type Auth struct {
 
 // Guard is an authentication check.
 type Guard struct {
-	// Func is its go/ssa name, e.g. "example.com/app/auth.RequireUser".
+	// Func is its go/ssa name, e.g. "example.com/app/auth.RequireUser";
+	// for Scala the name of a zio-http aspect or middleware,
+	// "app.http.RouteSupport.staffOnly", or a suffix of it.
 	Func string `yaml:"func"`
 	// Role is what passing it grants: authenticated (default), admin or
 	// guest.
@@ -200,7 +203,14 @@ func (c *Config) ScalaOptions() scala.Options {
 	if c == nil {
 		return scala.Options{}
 	}
-	return scala.Options{Extractor: c.Scala.Extractor, SBT: c.Scala.SBT, Projects: c.Scala.Projects}
+	opts := scala.Options{Extractor: c.Scala.Extractor, SBT: c.Scala.SBT, Projects: c.Scala.Projects}
+	for _, g := range c.Auth.Guards {
+		if opts.Guards == nil {
+			opts.Guards = map[string]string{}
+		}
+		opts.Guards[g.Func] = cmp.Or(g.Role, analysis.AccessAuthenticated)
+	}
+	return opts
 }
 
 // ProjectLang returns the language of the project in dir: the config's

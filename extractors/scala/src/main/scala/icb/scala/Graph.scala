@@ -15,7 +15,7 @@ final case class Node(
   attrs: Map[String, String] = Map.empty,
 )
 
-final case class Edge(from: String, to: String, kind: String, pos: Option[Pos] = None)
+final case class Edge(from: String, to: String, kind: String, pos: Option[Pos] = None, attrs: Map[String, String] = Map.empty)
 
 /** Collects the graph: a node added twice keeps the first, an edge added
   * twice (same endpoints, kind and position) is kept once.
@@ -70,7 +70,7 @@ final class Graph {
   }
 
   private def edgeJson(e: Edge): String = {
-    obj(Seq("from" -> str(e.from), "to" -> str(e.to), "kind" -> str(e.kind)) ++ e.pos.map("pos" -> posJson(_)))
+    obj(Seq("from" -> str(e.from), "to" -> str(e.to), "kind" -> str(e.kind)) ++ e.pos.map("pos" -> posJson(_)) ++ attrsJson(e.attrs))
   }
 
   private def posJson(p: Pos): String = {

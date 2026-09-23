@@ -85,7 +85,7 @@
       "additionalProperties": false,
       "properties": {
         "guards": {
-          "description": "Functions that check authentication, in addition to request-taking functions named *authenticat*.",
+          "description": "Functions that check authentication, in addition to request-taking functions named *authenticat*. For Scala, the zio-http aspects or middleware that do.",
           "type": "array",
           "items": {
             "type": "object",
@@ -93,7 +93,7 @@
             "required": ["func"],
             "properties": {
               "func": {
-                "description": "go/ssa name, e.g. example.com/app/auth.RequireUser.",
+                "description": "go/ssa name, e.g. example.com/app/auth.RequireUser; for Scala the aspect's name, e.g. app.http.RouteSupport.staffOnly, or a suffix of it.",
                 "type": "string"
               },
               "role": {

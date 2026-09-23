@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -97,7 +98,8 @@ func TestLangAndScalaOptions(t *testing.T) {
 	if lang := none.ProjectLang(dir); lang != analysis.LangScala {
 		t.Errorf("sbt build: %s", lang)
 	}
-	c, err := Parse(strings.NewReader("lang: go\nscala: {extractor: bin/icb-scala, sbt: sbtn, projects: [backend]}\n"))
+	c, err := Parse(strings.NewReader("lang: go\nscala: {extractor: bin/icb-scala, sbt: sbtn, projects: [backend]}\n" +
+		"auth: {guards: [{func: app.RouteSupport.authenticated}, {func: app.RouteSupport.staff, role: admin}]}\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +113,9 @@ func TestLangAndScalaOptions(t *testing.T) {
 		t.Errorf("go.mod next to build.sbt: %s", lang)
 	}
 	opts := c.ScalaOptions()
-	if opts.Extractor != "bin/icb-scala" || opts.SBT != "sbtn" || !slices.Equal(opts.Projects, []string{"backend"}) {
+	wantGuards := map[string]string{"app.RouteSupport.authenticated": "authenticated", "app.RouteSupport.staff": "admin"}
+	if opts.Extractor != "bin/icb-scala" || opts.SBT != "sbtn" || !slices.Equal(opts.Projects, []string{"backend"}) ||
+		!maps.Equal(opts.Guards, wantGuards) {
 		t.Errorf("scala options = %+v", opts)
 	}
 	if !reflect.DeepEqual(none.ScalaOptions(), scala.Options{}) {

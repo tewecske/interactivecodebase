@@ -15,7 +15,10 @@ lazy val shared = project
   .in(file("modules/shared"))
   .settings(
     name := "shared",
-    libraryDependencies += "dev.zio" %% "zio-json" % zioJsonVersion,
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-json" % zioJsonVersion,
+      "dev.zio" %% "zio-http" % zioHttpVersion,
+    ),
   )
 
 lazy val backend = project
