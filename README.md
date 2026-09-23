@@ -80,7 +80,7 @@ claude mcp add icb -- /path/to/icb mcp /path/to/your/module
 
 Tools: `list_routes`, `get_route`, `get_flow` (text or Mermaid), `get_node`, `get_source`, `find_callers`,
 `find_callees`, `find_paths`, `routes_touching_table`, `list_tables`, `get_table` (text or Mermaid), `search`,
-`reanalyze`. Resources: `icb://routes`, `icb://schema`.
+`reanalyze`. Resources: `icb://routes`, `icb://schema`. See [docs/mcp.md](docs/mcp.md) for setup, IDs and examples.
 
 ## Development
 

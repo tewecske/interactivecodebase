@@ -1,0 +1,45 @@
+[
+  {
+    "question": "Which routes call the external weather API?",
+    "tool": "search",
+    "args": {"query": "api.weather.example", "kind": "sink.http"},
+    "expect": ["sink.http:internal/weather/client.go:"]
+  },
+  {
+    "question": "What does sharing a note do?",
+    "tool": "get_flow",
+    "args": {"route": "POST /{lang}/notes/{id}/share"},
+    "expect": ["sink.smtp", "table notes (select"]
+  },
+  {
+    "question": "Is the reindex endpoint protected, and how?",
+    "tool": "get_route",
+    "args": {"route": "POST /{lang}/admin/reindex"},
+    "expect": ["access: admin", "middleware: web.requireAdmin"]
+  },
+  {
+    "question": "Which routes delete or write notes?",
+    "tool": "routes_touching_table",
+    "args": {"table": "notes", "op": "insert"},
+    "expect": ["1 routes touch notes", "POST /{lang}/notes\tinsert"],
+    "reject": ["GET /{lang}/notes"]
+  },
+  {
+    "question": "Which implementation serves notes.Repository.Create?",
+    "tool": "find_callees",
+    "args": {"symbol": "interface_call:(example.com/webapp/internal/notes.Repository).Create"},
+    "expect": ["dispatches_to\tmethod:(*example.com/webapp/internal/store/postgres.NoteRepository).Create"]
+  },
+  {
+    "question": "Where does exporting notes touch the file system and run processes?",
+    "tool": "get_flow",
+    "args": {"route": "GET /{lang}/admin/export"},
+    "expect": ["sink.file", "sink.exec exec.CommandContext \"gzip\""]
+  },
+  {
+    "question": "What does the schema look like?",
+    "tool": "get_table",
+    "args": {"name": "notes", "format": "mermaid"},
+    "expect": ["erDiagram", "audit_events }o--|| notes"]
+  }
+]
