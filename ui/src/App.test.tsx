@@ -19,6 +19,12 @@ const responses: Record<string, unknown> = {
     analysisMs: 2500,
   },
   "api/diagrams/sitemap?get=1": { mermaid: "flowchart LR\n  r0(\"GET /x\")\n", ids: { r0: "route:GET /x" } },
+  "api/routes": [
+    { id: "route:GET /{lang}/notes", method: "GET", pattern: "/{lang}/notes", access: "authenticated", handler: "(*example.com/webapp/internal/web.noteHandler).list", page: true, pos: { file: "internal/web/router.go", startLine: 39 } },
+    { id: "route:POST /{lang}/notes", method: "POST", pattern: "/{lang}/notes", access: "authenticated", handler: "(*example.com/webapp/internal/web.noteHandler).create", pos: {} },
+    { id: "route:GET /{lang}/weather", method: "GET", pattern: "/{lang}/weather", access: "public", optionalAuth: true, handler: "example.com/webapp/internal/web.weatherPage$1", pos: {} },
+  ],
+  "api/diagrams/sitemap?get=1&access=authenticated": { mermaid: "flowchart LR\n  r0(\"GET /x\")\n", ids: { r0: "route:GET /x" } },
   "api/node?id=func%3Aexample.com%2Fapp.F": {
     node: { id: "func:example.com/app.F", kind: "func", name: "F", package: "example.com/app", pos: { file: "app.go", startLine: 3 } },
     out: { calls: [{ edge: { id: 1, from: "func:example.com/app.F", to: "func:example.com/app.G", kind: "calls", pos: {} }, node: { id: "func:example.com/app.G", kind: "func", name: "G", pos: {} } }] },
@@ -63,6 +69,25 @@ describe("App", () => {
     expect(el.querySelector("h1")?.textContent).toContain("F");
     expect(el.textContent).toContain("calls →");
     expect(el.querySelector("a.pos")?.textContent).toBe("app.go:3");
+  });
+
+  it("lists routes in the site map table, filtered", async () => {
+    mockFetch();
+    const el = await render("#/sitemap?mode=table");
+    const rows = [...el.querySelectorAll("table.routes tbody tr")].map((tr) => tr.textContent);
+    expect(rows).toHaveLength(2); // GET only by default
+    expect(rows[0]).toContain("/{lang}/notes");
+    expect(rows[0]).toContain("(*web.noteHandler).list");
+    expect(rows[1]).toContain("public · session-aware");
+    const filtered = await render("#/sitemap?mode=table&access=authenticated");
+    expect(filtered.querySelectorAll("table.routes tbody tr")).toHaveLength(1);
+  });
+
+  it("draws the filtered site map diagram", async () => {
+    mockFetch();
+    const el = await render("#/sitemap?access=authenticated");
+    expect(el.querySelector(".diagram-canvas svg")).not.toBeNull();
+    expect(el.querySelector(".icb-clickable")).not.toBeNull();
   });
 
   it("toggles the theme", async () => {

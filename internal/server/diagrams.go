@@ -13,8 +13,9 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/mermaid"
 )
 
-// sitemapDiagram draws every route (or only GET routes with ?get=1)
-// grouped by access, with navigation edges.
+// sitemapDiagram draws routes grouped by access, with navigation edges.
+// Query parameters narrow it: get=1 (GET routes only), access (comma list
+// of groups: public, optional, guest, authenticated, admin), q (substring).
 func (s *Server) sitemapDiagram(r *http.Request) (any, error) {
 	ctx := r.Context()
 	routes, err := s.r.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
@@ -31,7 +32,12 @@ func (s *Server) sitemapDiagram(r *http.Request) (any, error) {
 			nav = append(nav, nb.Edge)
 		}
 	}
-	return mermaid.SiteMap(routes, nav, mermaid.SiteMapOptions{GETOnly: r.URL.Query().Get("get") == "1"}), nil
+	q := r.URL.Query()
+	opts := mermaid.SiteMapOptions{GETOnly: q.Get("get") == "1", Match: q.Get("q")}
+	if a := q.Get("access"); a != "" {
+		opts.Access = strings.Split(a, ",")
+	}
+	return mermaid.SiteMap(routes, nav, opts), nil
 }
 
 func (s *Server) flowDiagram(r *http.Request) (any, error) {

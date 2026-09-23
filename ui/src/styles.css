@@ -114,3 +114,15 @@ details summary { cursor: pointer; padding: 2px 0; }
   nav { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
   main { padding: 12px; }
 }
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 8px 0 12px; }
+.toolbar label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.toolbar input[type="checkbox"] { width: auto; }
+.toolbar .filter { width: 220px; }
+.segmented { display: inline-flex; }
+.segmented button { border-radius: 0; }
+.segmented button:first-child { border-radius: 6px 0 0 6px; }
+.segmented button:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.segmented button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12.5px; }
+table.routes td .badge { margin-left: 6px; }
+.legend { font-size: 12px; margin-top: 8px; }

@@ -1,0 +1,9 @@
+flowchart LR
+  subgraph authenticated["Signed in"]
+    r0("GET /{lang}/notes")
+    r1("GET /{lang}/notes/{id}")
+  end
+  r0 --> r1
+  r1 --> r0
+  click r0 icbClick
+  click r1 icbClick
