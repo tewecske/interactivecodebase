@@ -15,9 +15,11 @@ object Main extends ZIOAppDefault {
     RouteSupport.handleFailures(combined) @@ RouteSupport.requestLogging
   }
 
+  private def port: Int = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(8080)
+
   override def run: ZIO[Any, Throwable, Unit] = {
     Server
       .serve(allRoutes)
-      .provide(Server.default, NoteService.live, NoteRepository.live, DataSourceFactory.live)
+      .provide(Server.defaultWithPort(port), NoteService.live, NoteRepository.live, DataSourceFactory.live)
   }
 }

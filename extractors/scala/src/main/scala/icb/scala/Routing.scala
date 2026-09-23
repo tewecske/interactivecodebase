@@ -161,7 +161,7 @@ private[scala] trait Routing { self: Walk =>
 
   private def path(p: Pattern): String = p.segs.mkString("/", "/", "")
 
-  private def unprefixed(id: String): String = id.substring(id.indexOf(':') + 1)
+  private[scala] def unprefixed(id: String): String = id.substring(id.indexOf(':') + 1)
 
   // The evaluator.
 
@@ -449,7 +449,7 @@ private[scala] trait Routing { self: Walk =>
   /** The function called and its explicit arguments, varargs spread;
     * implicit and using argument lists are left out.
     */
-  private def call(t: Apply): (Term, List[Term]) = {
+  private[scala] def call(t: Apply): (Term, List[Term]) = {
     def loop(t: Term): (Term, List[Term]) = t match {
       case Apply(fn, args) =>
         val (f, before) = loop(fn)
@@ -465,14 +465,24 @@ private[scala] trait Routing { self: Walk =>
     loop(t)
   }
 
-  private def spread(t: Term): List[Term] = t match {
-    case Typed(Repeated(elems, _), _) => elems
-    case Repeated(elems, _)           => elems
-    case other                        => List(other)
+  private[scala] def spread(t: Term): List[Term] = {
+    def unInline(t: Term): Term = t match {
+      case Inlined(_, Nil, e) => unInline(e)
+      case other              => other
+    }
+    unInline(t) match {
+      case Typed(e, _) =>
+        unInline(e) match {
+          case Repeated(elems, _) => elems
+          case _                  => List(t)
+        }
+      case Repeated(elems, _) => elems
+      case _                  => List(t)
+    }
   }
 
   /** t without the wrappers that do not change its value. */
-  private def strip(t: Term): Term = t match {
+  private[scala] def strip(t: Term): Term = t match {
     case Inlined(_, Nil, e) => strip(e)
     case Typed(e, _)        => strip(e)
     case Block(Nil, e)      => strip(e)
@@ -480,12 +490,12 @@ private[scala] trait Routing { self: Walk =>
     case other              => other
   }
 
-  private def lambda(t: Term): Option[DefDef] = strip(t) match {
+  private[scala] def lambda(t: Term): Option[DefDef] = strip(t) match {
     case Block(List(d: DefDef), _: Closure) => Some(d)
     case _                                  => None
   }
 
-  private def isType(t: Term, fullName: String): Boolean = {
+  private[scala] def isType(t: Term, fullName: String): Boolean = {
     try {
       val s = t.tpe.widen.dealias.typeSymbol
       s.fullName == fullName || s.typeRef.baseClasses.exists(_.fullName == fullName)
@@ -507,7 +517,7 @@ private[scala] trait Routing { self: Walk =>
 
   private def symKey(sym: Symbol): (String, Int, Int) = sym.pos.fold(("", 0, 0))(posKey)
 
-  private def posKey(p: Position): (String, Int, Int) = {
+  private[scala] def posKey(p: Position): (String, Int, Int) = {
     val file = try p.sourceFile.path catch { case _: Exception => "" }
     (file, p.start, p.end)
   }

@@ -90,8 +90,9 @@ The graph has a `func` node per def or val of an object or package (`func:pkg.Ob
 def or val of a class or trait (`method:(pkg.Class).name`), `calls` edges (lambdas and local defs count towards
 the enclosing def), calls of abstract methods as `interface_call` nodes that `dispatches_to` the implementations
 (class-hierarchy analysis), and `type` nodes (`class`, `trait`, `object`, `enum`) with `implements` and
-`uses_type` edges for the types diagram. Calls into libraries, compiler-generated members and inlined code
-(the call sites of `inline def`s) are left out.
+`uses_type` edges for the types diagram. Calls into libraries and compiler-generated members are left out.
+TASTy is written before `inline def`s are inlined, so their call sites are kept; only `transparent inline` defs
+and macros such as Skunk's `sql` are already expanded.
 
 zio-http routes become `route` nodes like Go's. A small evaluator reads the `Routes` and `Route` vals and defs:
 `Method.GET / "api" / notes / long("id") -> handler(...)` (string literals and vals; `string`/`long`/`int`/`uuid`
@@ -104,9 +105,22 @@ any other handler expression gets its own node named after its member, numbered 
 (`func:app.NoteRoutes.routes$1`), with the calls it makes (the member keeps the rest). Access comes from the
 aspects: `admin*` means admin, `authenticat*`/`requireAuth`/`requireUser` authenticated, `optionalUser` a public
 route that consults the session; `auth.guards` in `icb.yaml` names others by their Scala name
-(`app.http.RouteSupport.staffOnly`, or a suffix such as `RouteSupport.staffOnly`) with their role. SQL and the
-frontend are not detected yet, and `serve -watch` does not react to Scala sources yet. An sbt shell already open
-in the project may conflict with icb's batch sbt run.
+(`app.http.RouteSupport.staffOnly`, or a suffix such as `RouteSupport.staffOnly`) with their role.
+
+Sinks become `sink.*` nodes like Go's, called from the def or route handler they are written in: SQL from Quill's
+`ctx.run`, Skunk's `sql"..."` (arguments as `$1`, `$2`, ...) and JDBC (`prepareStatement`, `executeQuery`, ...);
+zio-http's `Client`, sttp and `java.net.http` (`sink.http`); `java.nio.file.Files`, `scala.io.Source` and
+`java.io` streams (`sink.file`); `sys.env`, `System.getenv`, `zio.System.env*` and `ZIO.config` (`sink.env`);
+Jakarta/javax Mail's `Transport.send` (`sink.smtp`). TASTy holds a Quill query before Quill's macros turn it into
+SQL, so the extractor reads the quoted Scala, following the vals and `inline def`s it uses: `querySchema[T]("t",
+_.field -> "col")` and `query[T]` (the naming strategy of the context's type, snake_case by default) are tables,
+`insertValue`/`insert`/`updateValue`/`update`/`delete` the statement and its target, fields of a table's row type
+the columns. It writes that as SQL (`SELECT t0.id, t1.email FROM sessions t0, users t1`, `UPDATE users t0 SET
+email = $1 WHERE t0.id = $2`) for icb to parse. On import icb loads the migrations (`migrations` in `icb.yaml`,
+else the usual directories and Flyway's `src/main/resources/db/migration` of each module, or the PostgreSQL one of
+its per-database subdirectories, applied in version order) and links each SQL sink to the tables and columns it
+touches, as for Go. The frontend is not detected yet, and `serve -watch` does not react to Scala sources yet. An
+sbt shell already open in the project may conflict with icb's batch sbt run.
 
 ## JSON API
 
@@ -181,8 +195,9 @@ make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_G
 - `testdata/fixtures/entrypoints/`: commands, a worker with a job table, gRPC and NATS (stub modules via `replace`),
   with its golden `entries.json`.
 - `testdata/fixtures/scala/zioapp/`: a small sbt Scala 3 app shaped like gathedge (zio-http routes with aspects,
-  shared `Endpoint`s and path templates, a service trait and implementation, a Quill repository, a shared
-  module), for the Scala extractor; `routes.json` holds its expected routes.
+  shared `Endpoint`s and path templates, a service trait and implementation, a Quill repository with a Flyway
+  migration, env and HTTP calls, a shared module), for the Scala extractor; `routes.json` holds its expected
+  routes and `sinks.json` its sinks with the tables they touch.
 - `testdata/golden/goweb.json`: expectations for [goweb](https://github.com/tewecske/goweb) at a pinned commit.
 
 `internal/fixture` loads both and, until the analyzers exist, checks that every function, type, table, foreign key, template and asset the expectations name really exists.

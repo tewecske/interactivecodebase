@@ -14,6 +14,10 @@ trait NoteRepository {
   def find(id: Long): Task[Option[NoteRow]]
 
   def insert(title: String, body: String): Task[NoteRow]
+
+  def rename(id: Long, title: String): Task[Long]
+
+  def remove(id: Long): Task[Long]
 }
 
 object NoteRepository {
@@ -40,5 +44,14 @@ final class NoteRepositoryLive(dataSource: DataSource)
       notes.insertValue(lift(NoteRow(0L, title, body))).returningGenerated(_.id)
     }
     run(ctx.run(q)).map(id => NoteRow(id, title, body))
+  }
+
+  def rename(id: Long, title: String): Task[Long] = {
+    run(ctx.run(notes.filter(_.id == lift(id)).update(_.title -> lift(title))))
+  }
+
+  def remove(id: Long): Task[Long] = {
+    val q = quote(notes.filter(n => n.id == lift(id)).delete)
+    run(ctx.run(q))
   }
 }

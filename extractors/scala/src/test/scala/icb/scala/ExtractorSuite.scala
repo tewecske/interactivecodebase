@@ -143,6 +143,58 @@ class ExtractorSuite extends munit.FunSuite {
     assertEquals(route("DELETE /api/items/{?}").attrs("access"), "admin")
   }
 
+  private def sinks(kind: String): List[Node] = graph.allNodes.filter(_.kind == kind).toList
+
+  /** The sink of kind called from caller, the only one there. */
+  private def sinkOf(kind: String, caller: String): Node = {
+    sinks(kind).filter(_.attrs("caller") == caller) match {
+      case List(n) =>
+        val from = if (caller.startsWith("(")) s"method:$caller" else s"func:$caller"
+        assertEdge(from, n.id, "calls")
+        n
+      case other => fail(s"$kind sinks of $caller: $other; have ${sinks(kind).map(_.attrs("caller")).mkString(", ")}")
+    }
+  }
+
+  test("sinks: Quill queries read from the quoted Scala") {
+    val acc = "(sample.data.Accounts)"
+    val byEmail = sinkOf("sink.sql", s"$acc.byEmail")
+    assert(byEmail.id.startsWith("sink.sql:src/test/scala/sample/data/Data.scala:"), byEmail.id)
+    assertEquals(byEmail.detail, "SELECT t0.email, t0.id, t0.name, t0.active FROM accounts t0")
+    assertEquals(byEmail.attrs("dsl"), "quill")
+    assertEquals(byEmail.attrs("resolved"), "true")
+    assert(byEmail.attrs("callee").startsWith("io.getquill."), byEmail.attrs)
+    assertEquals(sinkOf("sink.sql", s"$acc.names").detail, "SELECT t0.active, t0.name FROM accounts t0")
+    assertEquals(
+      sinkOf("sink.sql", s"$acc.withLogins").detail,
+      "SELECT t0.id, t0.name, t0.email, t0.active, t1.account_id, t1.id, t1.at FROM accounts t0, logins t1",
+    )
+    assertEquals(sinkOf("sink.sql", s"$acc.create").detail, "INSERT INTO accounts (name, email, active) VALUES ($1, $2, $3) RETURNING id")
+    assertEquals(sinkOf("sink.sql", s"$acc.rename").detail, "UPDATE accounts t0 SET name = $1 WHERE t0.id = $2")
+    assertEquals(sinkOf("sink.sql", s"$acc.remove").detail, "DELETE FROM logins t0 WHERE t0.account_id = $1")
+    assertEquals(sinkOf("sink.sql", s"$acc.audit").detail, "INSERT INTO audit_entry (id, message) VALUES ($1, $2)")
+  }
+
+  test("sinks: JDBC and Skunk SQL") {
+    val count = sinkOf("sink.sql", "sample.data.Raw.count")
+    assertEquals(count.detail, "SELECT count(*) FROM accounts WHERE active")
+    assertEquals(count.attrs("callee"), "java.sql.Connection.prepareStatement")
+    assertEquals(count.name, "Connection.prepareStatement")
+    val skunk = sinkOf("sink.sql", "sample.data.Raw.skunkFind")
+    assertEquals(skunk.detail, "SELECT id, email FROM accounts WHERE id = $1")
+    assertEquals(skunk.attrs("dsl"), "skunk")
+  }
+
+  test("sinks: environment, files, HTTP and mail") {
+    assertEquals(sinkOf("sink.env", "sample.data.Outside.home").detail, "HOME")
+    assertEquals(sinkOf("sink.env", "sample.data.Outside.port").detail, "PORT")
+    val read = sinkOf("sink.file", "sample.data.Outside.read")
+    assertEquals(read.detail, "/etc/{?}")
+    assertEquals(read.attrs("resolved"), "false")
+    assertEquals(sinkOf("sink.http", "sample.data.Outside.fetch").detail, "https://example.com/api")
+    assertEquals(sinkOf("sink.smtp", "sample.data.Outside.mail").attrs("callee"), "jakarta.mail.Transport.send")
+  }
+
   test("arguments") {
     val args = Main.parse(List("--root", "r", "-o", "g.json", "--classpath", "a.jar:b.jar", "c1", "c2", "--classpath", "d.jar", "c3"))
     assertEquals(

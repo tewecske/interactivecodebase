@@ -6,12 +6,14 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/fixture"
 	"github.com/tewecske/interactivecodebase/internal/graph"
 	"github.com/tewecske/interactivecodebase/internal/scala"
+	"github.com/tewecske/interactivecodebase/internal/views"
 )
 
 // TestScalaFixture analyzes testdata/fixtures/scala/zioapp through sbt and
@@ -128,16 +131,78 @@ func TestScalaFixture(t *testing.T) {
 		}
 	}
 
-	// The flow of a route goes through its handler down to the repository
-	// (no sinks yet, so pruned to module code).
-	code, stdout, stderr = run(t, "query", "-prune", "module", dir, "flow", "GET /api/notes/{id}")
+	compareScalaSinks(ctx, t, filepath.Join(dir, "sinks.json"), g, all)
+	if n := nodes["sql_table:notes"]; n.Pos.File != "modules/backend/src/main/resources/db/migration/V1__notes.sql" || n.Attrs["inferred"] != "" {
+		t.Errorf("notes table from the Flyway migration: %+v", n)
+	}
+	if !slices.Equal(p.MigrationDirs, []string{"modules/backend/src/main/resources/db/migration"}) {
+		t.Errorf("migration dirs %v", p.MigrationDirs)
+	}
+	if er, err := views.ER(ctx, g, "", 1); err != nil || !strings.Contains(er.Mermaid, "notes") {
+		t.Errorf("ER diagram: %v\n%s", err, er.Mermaid)
+	}
+
+	// The flow of a route goes through its handler and the repository down
+	// to the query and its table.
+	code, stdout, stderr = run(t, "query", dir, "flow", "GET /api/notes/{id}")
 	if code != ExitOK {
 		t.Fatalf("query flow: exit code %d, stderr: %s", code, stderr)
 	}
-	for _, want := range []string{"NoteRoutes.publicRoutes$2", "NoteServiceLive.find", "NoteRepositoryLive.find"} {
+	for _, want := range []string{"NoteRoutes.publicRoutes$2", "NoteServiceLive.find", "NoteRepositoryLive.find", "SELECT t0.id", "notes"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("flow output missing %s:\n%s", want, stdout)
 		}
+	}
+}
+
+// scalaSink is a sink of the Scala fixture and, for SQL, the tables it
+// touches, as "table:op".
+type scalaSink struct {
+	Kind   string   `json:"kind"`
+	Caller string   `json:"caller"`
+	Callee string   `json:"callee"`
+	Detail string   `json:"detail"`
+	Tables []string `json:"tables,omitempty"`
+}
+
+// compareScalaSinks checks the sink nodes and the tables the SQL ones
+// query against the golden sinks in path.
+func compareScalaSinks(ctx context.Context, t *testing.T, path string, g *graph.Graph, nodes []graph.Node) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want []scalaSink
+	if err := json.Unmarshal(data, &want); err != nil {
+		t.Fatal(err)
+	}
+	var got []scalaSink
+	for _, n := range nodes {
+		if !strings.HasPrefix(string(n.Kind), "sink.") {
+			continue
+		}
+		if e := n.Attrs["parseError"]; e != "" {
+			t.Errorf("%s: %s", n.ID, e)
+		}
+		s := scalaSink{Kind: string(n.Kind), Caller: n.Attrs["caller"], Callee: n.Attrs["callee"], Detail: n.Detail}
+		nbs, err := g.Neighbors(ctx, n.ID, graph.Out, graph.EdgeQueries)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, nb := range nbs {
+			s.Tables = append(s.Tables, nb.Node.Name+":"+nb.Edge.Attrs["op"])
+		}
+		slices.Sort(s.Tables)
+		got = append(got, s)
+	}
+	slices.SortFunc(got, func(a, b scalaSink) int {
+		return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Caller, b.Caller), cmp.Compare(a.Detail, b.Detail))
+	})
+	gotJSON, _ := json.MarshalIndent(got, "", "  ")
+	wantJSON, _ := json.MarshalIndent(want, "", "  ")
+	if string(gotJSON) != string(wantJSON) {
+		t.Errorf("sinks:\n%s\nwant:\n%s", gotJSON, wantJSON)
 	}
 }
 
