@@ -267,7 +267,7 @@ type fieldStore struct {
 }
 
 func newTemplateResolver(r *Result, own []*ssa.Function) *templateResolver {
-	tr := &templateResolver{ev: newEvaluator(r.CallGraph, r.Module), stores: map[string][]fieldStore{}, cache: map[string][]string{}}
+	tr := &templateResolver{ev: r.evaluator(), stores: map[string][]fieldStore{}, cache: map[string][]string{}}
 	for _, fn := range own {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {

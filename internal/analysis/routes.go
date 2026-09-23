@@ -87,7 +87,7 @@ func discoverRoutes(r *Result, funcs []*ssa.Function) []Route {
 // registrationRoutes evaluates one Handle/HandleFunc call.
 func registrationRoutes(r *Result, call *ssa.Call, patternArg int) []Route {
 	args := call.Common().Args
-	patterns := newEvaluator(r.CallGraph, r.Module).strings(args[patternArg])
+	patterns := r.evaluator().strings(args[patternArg])
 	h := resolveHandler(args[patternArg+1], 0)
 	var muxMW []*ssa.Function
 	if patternArg == 1 {

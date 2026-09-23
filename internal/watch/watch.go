@@ -25,7 +25,7 @@ func relevant(name string) bool {
 	case ".go", ".html", ".tmpl", ".gohtml", ".sql":
 		return true
 	}
-	return name == "go.mod" || name == "go.sum"
+	return name == "go.mod" || name == "go.sum" || name == "icb.yaml"
 }
 
 // skipDir reports whether a directory is never analyzed.

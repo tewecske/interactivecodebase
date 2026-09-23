@@ -32,6 +32,7 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 	noAuth := fs.Bool("insecure-no-auth", false, "serve without authentication (only allowed on a loopback address)")
 	certFile := fs.String("tls-cert", "", "TLS certificate file (with -tls-key) to serve HTTPS")
 	keyFile := fs.String("tls-key", "", "TLS private key file")
+	cfgPath := configFlag(fs)
 	if err := parse(fs, args, 1); err != nil {
 		return err
 	}
@@ -41,7 +42,7 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 	if *noAuth && !isLoopback(*addr) {
 		return fmt.Errorf("-insecure-no-auth is only allowed on a loopback address, not %s: icb serves your source code", *addr)
 	}
-	cur, err := openLive(ctx, fs.Arg(0))
+	cur, err := openLive(ctx, fs.Arg(0), *cfgPath)
 	if err != nil {
 		return err
 	}

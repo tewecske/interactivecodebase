@@ -378,7 +378,7 @@ type fieldKey struct {
 
 func (d frameworkDetector) routes(r *Result, funcs []*ssa.Function) []Route {
 	t := &routerTracer{
-		r: r, ev: newEvaluator(r.CallGraph, r.Module),
+		r: r, ev: r.evaluator(),
 		scoped: map[*ssa.Function][]frameworkOp{}, memo: map[ssa.Value][]routerScope{}, busy: map[ssa.Value]bool{},
 		fieldStores: map[fieldKey][]ssa.Value{}, globalStores: map[*ssa.Global][]ssa.Value{},
 	}

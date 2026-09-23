@@ -411,10 +411,15 @@ func (b *builder) addSinks() error {
 			attrs["funcValue"] = "true"
 			detail = s.Callee + " passed as a function value"
 		}
+		name := shortFuncName(s.Callee)
+		if s.Label != "" {
+			attrs["label"] = s.Label
+			name = s.Label
+		}
 		err := b.w.AddNode(graph.Node{
 			ID:      id,
 			Kind:    s.Kind,
-			Name:    shortFuncName(s.Callee),
+			Name:    name,
 			Package: funcPkg(s.Caller).Path(),
 			Detail:  detail,
 			Pos:     b.pos(s.Pos, token.NoPos),

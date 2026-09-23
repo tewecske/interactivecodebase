@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tewecske/interactivecodebase/docs/icb.schema.json",
+  "title": "icb.yaml",
+  "description": "Per-project settings for icb (interactivecodebase) analysis. Every field is optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "packages": {
+      "description": "Package patterns to analyze, relative to the module root. Default: ./...",
+      "type": "array",
+      "items": { "type": "string" },
+      "examples": [["./cmd/...", "./internal/..."]]
+    },
+    "tests": {
+      "description": "Include _test.go files.",
+      "type": "boolean"
+    },
+    "exclude": {
+      "description": "Package path prefixes left out as call targets (noise such as logging), on top of the defaults (fmt, strings, log, context, ...).",
+      "type": "array",
+      "items": { "type": "string" },
+      "examples": [["log/slog", "example.com/app/internal/metrics"]]
+    },
+    "noDefaultExclude": {
+      "description": "Use only exclude, not the defaults.",
+      "type": "boolean"
+    },
+    "sinks": {
+      "description": "Extra calls that leave the program, e.g. the module's own client for a third-party API. func may name a function, a method or an interface method.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "func"],
+        "properties": {
+          "kind": {
+            "description": "What the call reaches.",
+            "enum": ["sql", "http", "file", "smtp", "exec", "env"]
+          },
+          "func": {
+            "description": "go/ssa name of the function, e.g. (*example.com/app/stripe.Client).Charge or (example.com/app/service.Mailer).Send.",
+            "type": "string"
+          },
+          "arg": {
+            "description": "Index of the argument naming what the sink touches (SQL text, URL, file name), counting after the receiver. Omit for none.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "description": "Name shown for the sink, e.g. Stripe API.",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "auth": {
+      "description": "Access-level detection.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "guards": {
+          "description": "Functions that check authentication, in addition to request-taking functions named *authenticat*.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["func"],
+            "properties": {
+              "func": {
+                "description": "go/ssa name, e.g. example.com/app/auth.RequireUser.",
+                "type": "string"
+              },
+              "role": {
+                "description": "Access passing the guard grants. Default: authenticated.",
+                "enum": ["authenticated", "admin", "guest"]
+              }
+            }
+          }
+        },
+        "roleFields": {
+          "description": "Regular expressions (Go syntax) matching the names of fields a guard branches on to require a role. Defaults: (?i)admin, (?i)guest.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "admin": { "type": "string" },
+            "guest": { "type": "string" }
+          }
+        }
+      }
+    },
+    "migrations": {
+      "description": "Directories with SQL migrations, relative to the module root. Default: migrations, db/migrations, sql/schema and similar.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "dialect": {
+      "description": "SQL dialect.",
+      "enum": ["postgres"]
+    },
+    "values": {
+      "description": "Possible values of things the analysis cannot resolve statically, keyed by the go/ssa name of a package variable, function or interface method (its result, or the elements of a returned slice), or env:NAME for os.Getenv(\"NAME\"). Route prefixes and names from configuration are the typical use.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "examples": [{ "env:BASE_PATH": ["/app"], "example.com/app/config.Providers": ["github", "google"] }]
+    }
+  }
+}

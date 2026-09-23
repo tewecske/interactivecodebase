@@ -34,6 +34,7 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 	asJSON := fs.Bool("json", false, "print results as JSON")
 	method := fs.String("method", "", "flow: request method to follow (default: the route's)")
 	prune := fs.String("prune", "sinks", "flow: sinks (only paths to sinks), module (module code and sinks) or none")
+	cfgPath := configFlag(fs)
 	usage := fs.Usage
 	fs.Usage = func() {
 		usage()
@@ -62,7 +63,11 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 		return errUsage
 	}
 
-	r, release, err := openAnalysis(ctx, fs.Arg(0))
+	opts, err := loadOptions(fs.Arg(0), *cfgPath)
+	if err != nil {
+		return err
+	}
+	r, release, err := openAnalysis(ctx, fs.Arg(0), opts)
 	if err != nil {
 		return err
 	}
