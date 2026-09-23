@@ -28,6 +28,10 @@
           "type": "array",
           "items": { "type": "string" },
           "examples": [["backend"]]
+        },
+        "server": {
+          "description": "How sbt runs. reuse: through sbt --client in an sbt server already running in the project (an open sbt shell or Metals), else in batch mode. start: also start a server when none runs, and keep it for later analyses (what serve -watch does unless this says otherwise). off: always in batch mode. Default: reuse.",
+          "enum": ["reuse", "start", "off"]
         }
       }
     },

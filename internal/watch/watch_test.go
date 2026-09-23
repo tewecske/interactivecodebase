@@ -26,7 +26,7 @@ func TestSnapshotDiff(t *testing.T) {
 	write(t, filepath.Join(dir, "README.md"), "ignored\n")
 	write(t, filepath.Join(dir, "node_modules", "x.go"), "ignored\n")
 	write(t, filepath.Join(dir, ".git", "HEAD"), "ref: refs/heads/main\n")
-	before := snapshot(dir)
+	before := snapshot(dir, "")
 	if len(before) != 3 {
 		t.Fatalf("snapshot = %v, want go.mod, a.go and .git/HEAD", before)
 	}
@@ -35,10 +35,52 @@ func TestSnapshotDiff(t *testing.T) {
 	write(t, filepath.Join(dir, "db", "001.sql"), "create table t (id int);\n")
 	write(t, filepath.Join(dir, "README.md"), "still ignored\n")
 	write(t, filepath.Join(dir, ".git", "HEAD"), "ref: refs/heads/feature\n")
-	got := diff(before, snapshot(dir))
+	got := diff(before, snapshot(dir, ""))
 	want := []string{filepath.Join(dir, ".git", "HEAD"), filepath.Join(dir, "a.go"), filepath.Join(dir, "db", "001.sql")}
 	if !slices.Equal(got, want) {
 		t.Errorf("diff = %v, want %v", got, want)
+	}
+}
+
+func TestScalaRelevance(t *testing.T) {
+	dir := t.TempDir()
+	for _, f := range []string{
+		"build.sbt", "icb.yaml", "project/Deps.scala", "project/build.properties", "project/plugins.sbt",
+		"modules/backend/src/main/scala/app/Main.scala",
+		"modules/backend/src/main/resources/db/migration/V1__init.sql",
+		"modules/shared/src/main/scala/app/Api.scala",
+		// Not analyzed: build output, IDE state, tests, other files.
+		"modules/backend/target/scala-3.8.4/src_managed/Gen.scala",
+		"modules/shared/.jvm/target/streams/x.scala",
+		"project/target/config-classes/x.scala",
+		"project/project/target/y.sbt",
+		".bsp/sbt.json", ".metals/x.scala", ".bloop/x.scala",
+		"modules/backend/src/test/scala/app/MainSpec.scala",
+		"node_modules/pkg/x.scala",
+		"modules/backend/src/main/resources/application.conf",
+		"README.md", "main.go",
+	} {
+		write(t, filepath.Join(dir, filepath.FromSlash(f)), "x\n")
+	}
+	var got []string
+	for p := range snapshot(dir, langScala) {
+		rel, _ := filepath.Rel(dir, p)
+		got = append(got, filepath.ToSlash(rel))
+	}
+	slices.Sort(got)
+	want := []string{
+		"build.sbt", "icb.yaml",
+		"modules/backend/src/main/resources/db/migration/V1__init.sql",
+		"modules/backend/src/main/scala/app/Main.scala",
+		"modules/shared/src/main/scala/app/Api.scala",
+		"project/Deps.scala", "project/build.properties", "project/plugins.sbt",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("scala snapshot = %v, want %v", got, want)
+	}
+	// Go ignores Scala files and keeps its own.
+	if relevant("", "Main.scala") || !relevant("", "main.go") || relevant(langScala, "main.go") {
+		t.Error("relevance is not per language")
 	}
 }
 

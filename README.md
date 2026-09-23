@@ -139,13 +139,26 @@ page parameter on, such as a navigation link helper, is followed to its callers.
 `PartialFunction.empty` only decodes URLs and is never a link target. The site map draws pages with the routes, and
 the route view (`/api/page?route=page:/...`) shows a page's views, requests and navigation.
 
-`serve -watch` does not react to Scala sources yet. An sbt shell already open in the project may conflict with
-icb's batch sbt run.
+How sbt runs is `scala.server` in `icb.yaml`. By default (`reuse`) icb runs it in batch mode, a JVM of its own
+(about 10 s on gathedge with the build compiled), unless an sbt server is already running in the project, such as
+an open sbt shell or the one Metals starts: then it runs `sbt --client` in that server, which is quicker and does
+not compete with it over `target/`. A client that cannot reach the server falls back to batch mode. `start` also
+starts a server when none runs (with `SBT_OPTS=-Xmx1500m`) and leaves it running; `off` always uses batch mode.
+
+`serve -watch` re-analyzes a Scala project when a `.scala` or `.sbt` file, `project/build.properties`, a `.sql`
+migration, `icb.yaml` or the git HEAD changes, leaving out `target/` directories, test sources (`src/test`,
+`src/it`), dot directories (`.bsp`, `.metals`, `.bloop`, `.git`) and `node_modules`. Saves are debounced: the
+analysis runs once changes have settled for a second, and changes made while it runs trigger one more. Unless
+`scala.server` says otherwise it runs sbt as `start` does, so each re-analysis costs an incremental compile in a
+warm server plus the extractor: about 15 s on gathedge (4 s on the zioapp fixture), against about 23 s for a cold
+`icb analyze`. The server holds about 2.5 GB of memory on gathedge while icb runs; a server icb started is shut down
+when `icb serve` stops (one that was already running is left alone). A failed compile or extraction keeps the last
+good analysis in service and shows the error in the UI.
 
 ## JSON API
 
 `icb serve` analyzes the module once (with `-watch`, again whenever `.go`, template or `.sql` files, `go.mod`
-or the git HEAD change) and serves:
+or the git HEAD change; for Scala see above) and serves:
 
 | Endpoint | |
 |---|---|
@@ -203,7 +216,15 @@ make ui      # builds and tests the web UI (ui/, Vite + React + Mermaid) into in
 cd ui && npm run dev   # UI dev server on :5173, proxying /api to a running icb serve
 make test-scala  # sbt test of the Scala extractor, then the zioapp fixture through sbt (part of make check; needs sbt and a JDK)
 make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_GOWEB_DIR) at the pinned commit
+make test-gathedge  # checks testdata/golden/gathedge.json against ../gathedge (or $ICB_GATHEDGE_DIR) at the pinned commit
 ```
+
+`make test-gathedge` builds the extractor and analyzes a [gathedge](https://github.com/tewecske/gathedge) checkout
+through sbt, which writes only its `target/` directories; it takes about 30 s with the build compiled and about
+1 GB of memory. The checkout is `$ICB_GATHEDGE_DIR`, else `gathedge` next to this repository or next to its parent
+directory; the test is skipped if it is missing or at another commit (`ICB_GATHEDGE_REQUIRED=1` fails instead).
+After changing the analysis on purpose, `ICB_GATHEDGE_UPDATE=1 make test-gathedge` rewrites the golden; review
+its diff.
 
 ### Fixtures
 
@@ -220,6 +241,10 @@ make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_G
   the Scala extractor; `routes.json` holds its expected routes, `sinks.json` its sinks with the tables they touch
   and `pages.json` its frontend pages with their views, requests and navigation.
 - `testdata/golden/goweb.json`: expectations for [goweb](https://github.com/tewecske/goweb) at a pinned commit.
+- `testdata/golden/gathedge.json`: facts about gathedge at a pinned commit that do not depend on positions or
+  generated code: node counts of routes, pages, requests, tables, columns and SQL sinks; every `/api` route with its
+  access and handler; each page with its first view and the routes it requests; where a few pages link and which
+  pages nothing links to; and the tables (with operations) the flows of a few routes reach.
 
 `internal/fixture` loads both and, until the analyzers exist, checks that every function, type, table, foreign key, template and asset the expectations name really exists.
 

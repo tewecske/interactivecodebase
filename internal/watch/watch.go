@@ -7,6 +7,7 @@ import (
 	"context"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,21 +17,51 @@ import (
 // Options tunes Run.
 type Options struct {
 	Interval time.Duration // how often to scan; default 1s
-	Quiet    time.Duration // how long changes must settle; default 500ms
+	Quiet    time.Duration // how long changes must settle; default 500ms, 1s for Scala
+	// Lang is the project's language (analysis.LangGo or LangScala),
+	// which decides the files that matter; default go.
+	Lang string
 }
 
-// relevant reports whether a file can change the analysis.
-func relevant(name string) bool {
-	switch filepath.Ext(name) {
-	case ".go", ".html", ".tmpl", ".gohtml", ".sql":
+// langScala is analysis.LangScala; watch does not depend on analysis.
+const langScala = "scala"
+
+// relevant reports whether a file can change the analysis of a project
+// in lang.
+func relevant(lang, name string) bool {
+	if name == "icb.yaml" || filepath.Ext(name) == ".sql" {
 		return true
 	}
-	return name == "go.mod" || name == "go.sum" || name == "icb.yaml"
+	if lang == langScala {
+		// Sources, the build and its plugins (project/*.sbt, *.scala),
+		// and the sbt version.
+		switch filepath.Ext(name) {
+		case ".scala", ".sbt":
+			return true
+		}
+		return name == "build.properties"
+	}
+	switch filepath.Ext(name) {
+	case ".go", ".html", ".tmpl", ".gohtml":
+		return true
+	}
+	return name == "go.mod" || name == "go.sum"
 }
 
-// skipDir reports whether a directory is never analyzed.
-func skipDir(name string) bool {
-	return name == "node_modules" || name == "vendor" || name == "testdata" || (strings.HasPrefix(name, ".") && name != ".")
+// skipDir reports whether the directory at rel (slash-separated, relative
+// to the project) is never analyzed: dot directories (.git, and for sbt
+// .bsp, .metals, .bloop and cross-built projects' .jvm/.js with their
+// target), node_modules and testdata; for Go vendor; for Scala sbt's
+// target directories and test sources (only Compile is analyzed).
+func skipDir(lang, rel string) bool {
+	name := path.Base(rel)
+	if name == "node_modules" || name == "testdata" || (strings.HasPrefix(name, ".") && name != ".") {
+		return true
+	}
+	if lang == langScala {
+		return name == "target" || strings.HasSuffix("/"+rel, "/src/test") || strings.HasSuffix("/"+rel, "/src/it")
+	}
+	return name == "vendor"
 }
 
 type fileState struct {
@@ -38,20 +69,20 @@ type fileState struct {
 	mod  time.Time
 }
 
-// snapshot fingerprints the relevant files under dir.
-func snapshot(dir string) map[string]fileState {
+// snapshot fingerprints the files under dir that matter for lang.
+func snapshot(dir, lang string) map[string]fileState {
 	out := map[string]fileState{}
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // vanished while walking
 		}
 		if d.IsDir() {
-			if path != dir && skipDir(d.Name()) {
+			if rel, err := filepath.Rel(dir, path); err == nil && path != dir && skipDir(lang, filepath.ToSlash(rel)) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !relevant(d.Name()) {
+		if !relevant(lang, d.Name()) {
 			return nil
 		}
 		if info, err := d.Info(); err == nil {
@@ -93,9 +124,14 @@ func Run(ctx context.Context, dir string, opts Options, changed func(paths []str
 		opts.Interval = time.Second
 	}
 	if opts.Quiet <= 0 {
+		// A Scala re-analysis runs sbt and the extractor, which takes
+		// seconds, so wait a little longer for a burst of saves to end.
 		opts.Quiet = 500 * time.Millisecond
+		if opts.Lang == langScala {
+			opts.Quiet = time.Second
+		}
 	}
-	last := snapshot(dir)
+	last := snapshot(dir, opts.Lang)
 	var pending []string
 	var settleAt time.Time
 	tick := time.NewTicker(min(opts.Interval, opts.Quiet))
@@ -111,7 +147,7 @@ func Run(ctx context.Context, dir string, opts Options, changed func(paths []str
 			if now.Before(nextScan) && (len(pending) == 0 || now.Before(settleAt)) {
 				continue
 			}
-			cur := snapshot(dir)
+			cur := snapshot(dir, opts.Lang)
 			if d := diff(last, cur); len(d) > 0 {
 				for _, p := range d {
 					if !slices.Contains(pending, p) {

@@ -1,0 +1,1234 @@
+{
+  "commit": "a86e9a6a142589390230e96fd3f412426f7e69d1",
+  "counts": {
+    "htmx_call": 110,
+    "page": 36,
+    "route": 122,
+    "sink.sql": 270,
+    "sql_column": 186,
+    "sql_table": 28
+  },
+  "routes": [
+    {
+      "route": "DELETE /api/admin/users/{id}",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.deleteUserRoute$1"
+    },
+    {
+      "route": "DELETE /api/admin/users/{id}/identities/{provider}",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.unlinkUserIdentityRoute$1"
+    },
+    {
+      "route": "DELETE /api/admin/users/{id}/lockout",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.clearUserLockoutRoute$1"
+    },
+    {
+      "route": "DELETE /api/admin/users/{id}/sessions",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.revokeUserSessionsRoute$1"
+    },
+    {
+      "route": "DELETE /api/games/{slug}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.deleteRoute$1"
+    },
+    {
+      "route": "DELETE /api/games/{slug}/favorite",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.unfavoriteRoute$1"
+    },
+    {
+      "route": "DELETE /api/groups/{groupId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.deleteGroupRoute$1"
+    },
+    {
+      "route": "DELETE /api/groups/{groupId}/members/{userId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.removeMemberRoute$1"
+    },
+    {
+      "route": "DELETE /api/groups/{groupId}/tags/{tagId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.detachTagRoute$1"
+    },
+    {
+      "route": "DELETE /api/me/identities/{provider}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.unlinkIdentityRoute$1"
+    },
+    {
+      "route": "DELETE /api/progress-shares/viewers/{viewerUserId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.ProgressShareRoutes.revokeViewerRoute$1"
+    },
+    {
+      "route": "DELETE /api/tags/{tagId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.deleteTagRoute$1"
+    },
+    {
+      "route": "DELETE /api/tags/{tagId}/pairs/{sourceWordId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.deletePairRoute$1"
+    },
+    {
+      "route": "DELETE /api/words/{id}/tags/{tagId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.untagWordRoute$1"
+    },
+    {
+      "route": "DELETE /api/words/{id}/tags/{tagId}/translations/{translationWordId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.deselectPairRoute$1"
+    },
+    {
+      "route": "DELETE /api/words/{id}/translations/{translationId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.removeTranslationRoute$1"
+    },
+    {
+      "route": "GET /api/admin/audit",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.auditLogRoute$1"
+    },
+    {
+      "route": "GET /api/admin/games/same-tags",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.duplicateGamesRoute$1"
+    },
+    {
+      "route": "GET /api/admin/login-attempts",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.loginAttemptsRoute$1"
+    },
+    {
+      "route": "GET /api/admin/rate-limits",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.rateLimitsRoute$1"
+    },
+    {
+      "route": "GET /api/admin/system",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.systemOverviewRoute$1"
+    },
+    {
+      "route": "GET /api/admin/usage/routes",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.usageRoutesRoute$1"
+    },
+    {
+      "route": "GET /api/admin/usage/suspicious",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.usageSuspiciousRoute$1"
+    },
+    {
+      "route": "GET /api/admin/users",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.listUsersRoute$1"
+    },
+    {
+      "route": "GET /api/admin/users/{id}",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.getUserRoute$1"
+    },
+    {
+      "route": "GET /api/admin/users/{id}/detail",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.userDetailRoute$1"
+    },
+    {
+      "route": "GET /api/admin/users/{id}/plays",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.userPlaysRoute$1"
+    },
+    {
+      "route": "GET /api/admin/users/{id}/plays/{playId}/results",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.userPlayResultsRoute$1"
+    },
+    {
+      "route": "GET /api/admin/word-forms/anomalies",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.wordFormAnomaliesRoute$1"
+    },
+    {
+      "route": "GET /api/auth/captcha-status",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.captchaStatusRoute$1"
+    },
+    {
+      "route": "GET /api/auth/providers",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.providersRoute$1"
+    },
+    {
+      "route": "GET /api/auth/{provider}/callback",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.oauthCallbackRoute$1"
+    },
+    {
+      "route": "GET /api/auth/{provider}/start",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.oauthStartRoute$1"
+    },
+    {
+      "route": "GET /api/games/all",
+      "access": "public",
+      "handler": "gathedge.backend.http.GameRoutes.allGamesRoute$1"
+    },
+    {
+      "route": "GET /api/games/plays/mine",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.myPlaysRoute$1"
+    },
+    {
+      "route": "GET /api/games/plays/{playId}/prompt",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.nextPromptRoute$1"
+    },
+    {
+      "route": "GET /api/games/plays/{playId}/results",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.resultsRoute$1"
+    },
+    {
+      "route": "GET /api/games/same-tags",
+      "access": "public",
+      "handler": "gathedge.backend.http.GameRoutes.sameTagGamesRoute$1"
+    },
+    {
+      "route": "GET /api/games/setup",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.setupRoute$1"
+    },
+    {
+      "route": "GET /api/games/setup/words",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.setupWordsRoute$1"
+    },
+    {
+      "route": "GET /api/games/{slug}",
+      "access": "public",
+      "handler": "gathedge.backend.http.GameRoutes.getRoute$1"
+    },
+    {
+      "route": "GET /api/games/{slug}/plays",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.listPlaysRoute$1"
+    },
+    {
+      "route": "GET /api/games/{slug}/plays/setup",
+      "access": "public",
+      "handler": "gathedge.backend.http.GameRoutes.playSetupRoute$1"
+    },
+    {
+      "route": "GET /api/games/{slug}/plays/{playId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.playDetailRoute$1"
+    },
+    {
+      "route": "GET /api/groups",
+      "access": "public",
+      "handler": "gathedge.backend.http.GroupRoutes.listRoute$1"
+    },
+    {
+      "route": "GET /api/groups/{groupId}",
+      "access": "public",
+      "handler": "gathedge.backend.http.GroupRoutes.getRoute$1"
+    },
+    {
+      "route": "GET /api/me",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.meRoute$1"
+    },
+    {
+      "route": "GET /api/me/identities",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.identitiesRoute$1"
+    },
+    {
+      "route": "GET /api/me/streak",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.StreakRoutes.streakRoute$1"
+    },
+    {
+      "route": "GET /api/progress-shares/shared-with-me",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.ProgressShareRoutes.sharedWithMeRoute$1"
+    },
+    {
+      "route": "GET /api/progress-shares/viewers",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.ProgressShareRoutes.viewersRoute$1"
+    },
+    {
+      "route": "GET /api/progress-shares/{sharerUserId}/plays",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.ProgressShareRoutes.sharerPlaysRoute$1"
+    },
+    {
+      "route": "GET /api/progress-shares/{sharerUserId}/plays/{playId}/results",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.ProgressShareRoutes.sharerPlayResultsRoute$1"
+    },
+    {
+      "route": "GET /api/tags",
+      "access": "public",
+      "handler": "gathedge.backend.http.WordRoutes.listTagsRoute$1"
+    },
+    {
+      "route": "GET /api/tags/export",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.exportOwnedTagsRoute$1"
+    },
+    {
+      "route": "GET /api/tags/page",
+      "access": "public",
+      "handler": "gathedge.backend.http.WordRoutes.listTagsPageRoute$1"
+    },
+    {
+      "route": "GET /api/tags/{tagId}",
+      "access": "public",
+      "handler": "gathedge.backend.http.WordRoutes.getTagRoute$1"
+    },
+    {
+      "route": "GET /api/tags/{tagId}/entries",
+      "access": "public",
+      "handler": "gathedge.backend.http.WordRoutes.tagEntriesRoute$1"
+    },
+    {
+      "route": "GET /api/tags/{tagId}/entries/page",
+      "access": "public",
+      "handler": "gathedge.backend.http.WordRoutes.tagEntriesPageRoute$1"
+    },
+    {
+      "route": "GET /api/tags/{tagId}/export",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.exportTagRoute$1"
+    },
+    {
+      "route": "GET /api/words",
+      "access": "public",
+      "handler": "gathedge.backend.http.WordRoutes.listRoute$1"
+    },
+    {
+      "route": "GET /api/words/{id}",
+      "access": "public",
+      "handler": "gathedge.backend.http.WordRoutes.getRoute$1"
+    },
+    {
+      "route": "PATCH /api/games/{slug}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.renameRoute$1"
+    },
+    {
+      "route": "POST /api/admin/rate-limits/clear",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.clearRateLimitsRoute$1"
+    },
+    {
+      "route": "POST /api/admin/system/prune",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.systemPruneRoute$1"
+    },
+    {
+      "route": "POST /api/admin/users",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.createUserRoute$1"
+    },
+    {
+      "route": "POST /api/admin/users/{id}/verification/resend",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.resendUserVerificationRoute$1"
+    },
+    {
+      "route": "POST /api/admin/users/{id}/verify-email",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.verifyUserEmailRoute$1"
+    },
+    {
+      "route": "POST /api/admin/word-forms/anomalies/delete",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.deleteWordFormAnomalyRoute$1"
+    },
+    {
+      "route": "POST /api/auth/email-change/confirm",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.confirmEmailChangeRoute$1"
+    },
+    {
+      "route": "POST /api/auth/login",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.loginRoute$1"
+    },
+    {
+      "route": "POST /api/auth/logout",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.logoutRoute$1"
+    },
+    {
+      "route": "POST /api/auth/password/forgot",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.forgotPasswordRoute$1"
+    },
+    {
+      "route": "POST /api/auth/password/reset",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.resetPasswordRoute$1"
+    },
+    {
+      "route": "POST /api/auth/signup",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.signupRoute$1"
+    },
+    {
+      "route": "POST /api/auth/upgrade",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.upgradeGuestRoute$1"
+    },
+    {
+      "route": "POST /api/auth/verification/resend",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.resendVerificationRoute$1"
+    },
+    {
+      "route": "POST /api/auth/verify",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.verifyEmailRoute$1"
+    },
+    {
+      "route": "POST /api/games",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.createRoute$1"
+    },
+    {
+      "route": "POST /api/games/plays/{playId}/answers",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.submitAnswerRoute$1"
+    },
+    {
+      "route": "POST /api/games/{slug}/favorite",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.favoriteRoute$1"
+    },
+    {
+      "route": "POST /api/games/{slug}/plays",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GameRoutes.startPlayRoute$1"
+    },
+    {
+      "route": "POST /api/groups",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.createRoute$1"
+    },
+    {
+      "route": "POST /api/groups/join",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.joinRoute$1"
+    },
+    {
+      "route": "POST /api/groups/{groupId}/invite-code/regenerate",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.regenerateInviteCodeRoute$1"
+    },
+    {
+      "route": "POST /api/groups/{groupId}/leave",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.leaveRoute$1"
+    },
+    {
+      "route": "POST /api/guest",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.createGuestRoute$1"
+    },
+    {
+      "route": "POST /api/guest/claim",
+      "access": "public",
+      "handler": "gathedge.backend.http.AuthRoutes.claimGuestRoute$1"
+    },
+    {
+      "route": "POST /api/guest/code",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.guestCodeRoute$1"
+    },
+    {
+      "route": "POST /api/progress-shares/code",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.ProgressShareRoutes.codeRoute$1"
+    },
+    {
+      "route": "POST /api/progress-shares/redeem",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.ProgressShareRoutes.redeemRoute$1"
+    },
+    {
+      "route": "POST /api/tags",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.createTagRoute$1"
+    },
+    {
+      "route": "POST /api/tags/import",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.importTagsRoute$1"
+    },
+    {
+      "route": "POST /api/tags/with-pairs",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.createTagWithPairsRoute$1"
+    },
+    {
+      "route": "POST /api/tags/{tagId}/bulk-import",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.bulkImportRoute$1"
+    },
+    {
+      "route": "POST /api/tags/{tagId}/copy",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.copyTagRoute$1"
+    },
+    {
+      "route": "POST /api/tags/{tagId}/pairs",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.addPairRoute$1"
+    },
+    {
+      "route": "POST /api/tags/{tagId}/pairs/bulk-delete",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.bulkDeletePairsRoute$1"
+    },
+    {
+      "route": "POST /api/tags/{tagId}/tabular-import",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.tabularImportRoute$1"
+    },
+    {
+      "route": "POST /api/tags/{tagId}/words",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.attachWordRoute$1"
+    },
+    {
+      "route": "POST /api/tags/{tagId}/words/bulk-delete",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.bulkDeleteWordsRoute$1"
+    },
+    {
+      "route": "POST /api/words",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.createRoute$1"
+    },
+    {
+      "route": "POST /api/words/column-language-check",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.columnLanguageCheckRoute$1"
+    },
+    {
+      "route": "POST /api/words/language-check",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.languageCheckRoute$1"
+    },
+    {
+      "route": "POST /api/words/tags/{tagId}/bulk-upload/confirm",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.bulkUploadConfirmRoute$1"
+    },
+    {
+      "route": "POST /api/words/tags/{tagId}/bulk-upload/preview",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.bulkUploadPreviewRoute$1"
+    },
+    {
+      "route": "POST /api/words/{id}/translations",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.addTranslationRoute$1"
+    },
+    {
+      "route": "PUT /api/admin/users/{id}",
+      "access": "admin",
+      "handler": "gathedge.backend.http.AdminRoutes.updateUserRoute$1"
+    },
+    {
+      "route": "PUT /api/groups/{groupId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.renameGroupRoute$1"
+    },
+    {
+      "route": "PUT /api/groups/{groupId}/members/{userId}/role",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.setMemberRoleRoute$1"
+    },
+    {
+      "route": "PUT /api/groups/{groupId}/tags/{tagId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.GroupRoutes.attachTagRoute$1"
+    },
+    {
+      "route": "PUT /api/me/email",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.updateEmailRoute$1"
+    },
+    {
+      "route": "PUT /api/me/locale",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.updateLocaleRoute$1"
+    },
+    {
+      "route": "PUT /api/me/password",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.setPasswordRoute$1"
+    },
+    {
+      "route": "PUT /api/me/profile",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.updateProfileRoute$1"
+    },
+    {
+      "route": "PUT /api/me/theme",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.AuthRoutes.updateThemeRoute$1"
+    },
+    {
+      "route": "PUT /api/tags/{tagId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.renameTagRoute$1"
+    },
+    {
+      "route": "PUT /api/tags/{tagId}/languages",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.setTagLanguagesRoute$1"
+    },
+    {
+      "route": "PUT /api/tags/{tagId}/pairs",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.replacePairRoute$1"
+    },
+    {
+      "route": "PUT /api/words/{id}/gender",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.setGenderRoute$1"
+    },
+    {
+      "route": "PUT /api/words/{id}/tags/{tagId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.tagWordRoute$1"
+    },
+    {
+      "route": "PUT /api/words/{id}/tags/{tagId}/translations/{translationWordId}",
+      "access": "authenticated",
+      "handler": "gathedge.backend.http.WordRoutes.selectPairRoute$1"
+    }
+  ],
+  "pages": [
+    {
+      "pattern": "/{basePath}",
+      "view": "func:gathedge.frontend.pages.AllGamesPage.render",
+      "requests": [
+        "DELETE /api/games/{slug}/favorite",
+        "GET /api/games/all",
+        "GET /api/me/streak",
+        "GET /api/tags",
+        "GET /api/tags/page",
+        "POST /api/auth/logout",
+        "POST /api/games/{slug}/favorite",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/about",
+      "view": "func:gathedge.frontend.pages.AboutPage.render",
+      "requests": [
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/audit",
+      "view": "func:gathedge.frontend.pages.AdminAuditPage.render",
+      "requests": [
+        "GET /api/admin/audit",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/duplicate-games",
+      "view": "func:gathedge.frontend.pages.AdminDuplicateGamesPage.render",
+      "requests": [
+        "GET /api/admin/games/same-tags",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/rate-limits",
+      "view": "func:gathedge.frontend.pages.AdminRateLimitsPage.render",
+      "requests": [
+        "GET /api/admin/rate-limits",
+        "GET /api/me/streak",
+        "POST /api/admin/rate-limits/clear",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/system",
+      "view": "func:gathedge.frontend.pages.AdminSystemPage.render",
+      "requests": [
+        "GET /api/admin/system",
+        "GET /api/me/streak",
+        "POST /api/admin/rate-limits/clear",
+        "POST /api/admin/system/prune",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/usage",
+      "view": "func:gathedge.frontend.pages.AdminUsagePage.render",
+      "requests": [
+        "GET /api/admin/usage/routes",
+        "GET /api/admin/usage/suspicious",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/users",
+      "view": "func:gathedge.frontend.pages.AdminUsersPage.render",
+      "requests": [
+        "GET /api/admin/rate-limits",
+        "GET /api/admin/users",
+        "GET /api/me/streak",
+        "POST /api/admin/users",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/users/{id}",
+      "view": "func:gathedge.frontend.pages.AdminUserDetailPage.render",
+      "requests": [
+        "DELETE /api/admin/users/{id}",
+        "DELETE /api/admin/users/{id}/identities/{provider}",
+        "DELETE /api/admin/users/{id}/lockout",
+        "DELETE /api/admin/users/{id}/sessions",
+        "GET /api/admin/users/{id}",
+        "GET /api/admin/users/{id}/detail",
+        "GET /api/me/streak",
+        "POST /api/admin/users/{id}/verification/resend",
+        "POST /api/admin/users/{id}/verify-email",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/admin/users/{id}",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/users/{id}/plays",
+      "view": "func:gathedge.frontend.pages.AdminUserPlaysPage.render",
+      "requests": [
+        "GET /api/admin/users/{id}",
+        "GET /api/admin/users/{id}/plays",
+        "GET /api/admin/users/{id}/plays/{playId}/results",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/admin/word-forms",
+      "view": "func:gathedge.frontend.pages.AdminWordFormsPage.render",
+      "requests": [
+        "GET /api/admin/word-forms/anomalies",
+        "GET /api/me/streak",
+        "POST /api/admin/word-forms/anomalies/delete",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/check-inbox",
+      "view": "func:gathedge.frontend.pages.CheckInboxPage.render",
+      "requests": [
+        "POST /api/auth/verification/resend"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/confirm-email-change/{token}",
+      "view": "func:gathedge.frontend.pages.ConfirmEmailChangePage.render",
+      "requests": [
+        "POST /api/auth/email-change/confirm"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/forbidden",
+      "view": "func:gathedge.frontend.pages.ForbiddenPage.render",
+      "requests": []
+    },
+    {
+      "pattern": "/{basePath}/forgot-password",
+      "view": "func:gathedge.frontend.pages.ForgotPasswordPage.render",
+      "requests": [
+        "GET /api/auth/captcha-status",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/auth/password/forgot",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/g/{slug}",
+      "view": "func:gathedge.frontend.pages.GameInstancePage.render",
+      "requests": [
+        "DELETE /api/games/{slug}",
+        "GET /api/auth/providers",
+        "GET /api/games/{slug}",
+        "GET /api/games/{slug}/plays/setup",
+        "GET /api/me/streak",
+        "PATCH /api/games/{slug}",
+        "POST /api/auth/logout",
+        "POST /api/games/{slug}/plays",
+        "POST /api/guest",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/g/{slug}/play/{playId}",
+      "view": "func:gathedge.frontend.pages.GamePlayPage.render",
+      "requests": [
+        "GET /api/games/plays/{playId}/prompt",
+        "GET /api/games/plays/{playId}/results",
+        "GET /api/games/{slug}",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/games/plays/{playId}/answers",
+        "POST /api/games/{slug}/plays",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/games/all",
+      "view": "func:gathedge.frontend.pages.AllGamesPage.render",
+      "requests": [
+        "DELETE /api/games/{slug}/favorite",
+        "GET /api/games/all",
+        "GET /api/me/streak",
+        "GET /api/tags",
+        "GET /api/tags/page",
+        "POST /api/auth/logout",
+        "POST /api/games/{slug}/favorite",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/games/{slug}/results",
+      "view": "func:gathedge.frontend.pages.GameResultsPage.render",
+      "requests": [
+        "GET /api/games/{slug}",
+        "GET /api/games/{slug}/plays",
+        "GET /api/games/{slug}/plays/{playId}",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/groups",
+      "view": "func:gathedge.frontend.pages.GroupsPage.render",
+      "requests": [
+        "GET /api/groups",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/groups",
+        "POST /api/groups/join",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/groups/join/{code}",
+      "view": "func:gathedge.frontend.pages.GroupJoinPage.render",
+      "requests": [
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/groups/join",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/groups/{id}",
+      "view": "func:gathedge.frontend.pages.GroupDetailPage.render",
+      "requests": [
+        "DELETE /api/groups/{groupId}",
+        "DELETE /api/groups/{groupId}/members/{userId}",
+        "DELETE /api/groups/{groupId}/tags/{tagId}",
+        "GET /api/auth/providers",
+        "GET /api/groups/{groupId}",
+        "GET /api/me/streak",
+        "GET /api/tags",
+        "POST /api/auth/logout",
+        "POST /api/groups/{groupId}/invite-code/regenerate",
+        "POST /api/groups/{groupId}/leave",
+        "POST /api/guest/code",
+        "PUT /api/groups/{groupId}",
+        "PUT /api/groups/{groupId}/members/{userId}/role",
+        "PUT /api/groups/{groupId}/tags/{tagId}",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/profile",
+      "view": "func:gathedge.frontend.pages.ProfilePage.render",
+      "requests": [
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/profile/history",
+      "view": "func:gathedge.frontend.pages.MyPlayHistoryPage.render",
+      "requests": [
+        "GET /api/games/plays/mine",
+        "GET /api/games/plays/{playId}/results",
+        "GET /api/games/{slug}",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/games/{slug}/plays",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/profile/shared",
+      "view": "func:gathedge.frontend.pages.SharedProgressPage.render",
+      "requests": [
+        "GET /api/me/streak",
+        "GET /api/progress-shares/shared-with-me",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "POST /api/progress-shares/redeem",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/profile/shared/{sharerUserId}",
+      "view": "func:gathedge.frontend.pages.SharedPlayerHistoryPage.render",
+      "requests": [
+        "GET /api/me/streak",
+        "GET /api/progress-shares/shared-with-me",
+        "GET /api/progress-shares/{sharerUserId}/plays",
+        "GET /api/progress-shares/{sharerUserId}/plays/{playId}/results",
+        "POST /api/auth/logout",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/reset-password/{token}",
+      "view": "func:gathedge.frontend.pages.ResetPasswordPage.render",
+      "requests": [
+        "POST /api/auth/password/reset"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/settings",
+      "view": "func:gathedge.frontend.pages.SettingsPage.render",
+      "requests": [
+        "DELETE /api/me/identities/{provider}",
+        "DELETE /api/progress-shares/viewers/{viewerUserId}",
+        "GET /api/auth/captcha-status",
+        "GET /api/me",
+        "GET /api/me/identities",
+        "GET /api/me/streak",
+        "GET /api/progress-shares/viewers",
+        "POST /api/auth/logout",
+        "POST /api/auth/verification/resend",
+        "POST /api/guest/code",
+        "POST /api/progress-shares/code",
+        "PUT /api/me/email",
+        "PUT /api/me/password",
+        "PUT /api/me/profile",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/sign-in",
+      "view": "func:gathedge.frontend.pages.SignInPage.render",
+      "requests": [
+        "GET /api/auth/captcha-status",
+        "GET /api/auth/providers",
+        "GET /api/me/streak",
+        "POST /api/auth/login",
+        "POST /api/auth/logout",
+        "POST /api/auth/verification/resend",
+        "POST /api/guest/claim",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/sign-up",
+      "view": "func:gathedge.frontend.pages.SignUpPage.render",
+      "requests": [
+        "GET /api/auth/captcha-status",
+        "GET /api/auth/providers",
+        "GET /api/me/streak",
+        "POST /api/auth/logout",
+        "POST /api/auth/signup",
+        "POST /api/auth/upgrade",
+        "POST /api/guest/claim",
+        "POST /api/guest/code",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/tags",
+      "view": "func:gathedge.frontend.pages.TagsPage.render",
+      "requests": [
+        "GET /api/me/streak",
+        "GET /api/tags",
+        "GET /api/tags/export",
+        "GET /api/tags/page",
+        "POST /api/auth/logout",
+        "POST /api/games",
+        "POST /api/guest",
+        "POST /api/guest/code",
+        "POST /api/tags/import",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/tags/new",
+      "view": "func:gathedge.frontend.pages.TagCreatePage.render",
+      "requests": [
+        "GET /api/me/streak",
+        "GET /api/tags",
+        "POST /api/auth/logout",
+        "POST /api/guest",
+        "POST /api/guest/code",
+        "POST /api/tags",
+        "PUT /api/me/theme"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/tags/{id}",
+      "view": "func:gathedge.frontend.pages.TagEditorPage.render",
+      "requests": [
+        "DELETE /api/tags/{tagId}",
+        "DELETE /api/tags/{tagId}/pairs/{sourceWordId}",
+        "GET /api/me/streak",
+        "GET /api/tags/{tagId}",
+        "GET /api/tags/{tagId}/entries/page",
+        "GET /api/tags/{tagId}/export",
+        "GET /api/words",
+        "GET /api/words/{id}",
+        "POST /api/auth/logout",
+        "POST /api/games",
+        "POST /api/guest",
+        "POST /api/guest/code",
+        "POST /api/tags/{tagId}/bulk-import",
+        "POST /api/tags/{tagId}/pairs",
+        "POST /api/tags/{tagId}/pairs/bulk-delete",
+        "POST /api/tags/{tagId}/tabular-import",
+        "POST /api/tags/{tagId}/words",
+        "POST /api/tags/{tagId}/words/bulk-delete",
+        "POST /api/words/column-language-check",
+        "POST /api/words/language-check",
+        "PUT /api/me/theme",
+        "PUT /api/tags/{tagId}",
+        "PUT /api/tags/{tagId}/languages",
+        "PUT /api/tags/{tagId}/pairs"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/verify-email/{token}",
+      "view": "func:gathedge.frontend.pages.VerifyEmailPage.render",
+      "requests": [
+        "POST /api/auth/verification/resend",
+        "POST /api/auth/verify"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/words",
+      "view": "func:gathedge.frontend.pages.WordsPage.render",
+      "requests": [
+        "DELETE /api/words/{id}/tags/{tagId}",
+        "DELETE /api/words/{id}/tags/{tagId}/translations/{translationWordId}",
+        "GET /api/me/streak",
+        "GET /api/tags",
+        "GET /api/words",
+        "POST /api/auth/logout",
+        "POST /api/guest",
+        "POST /api/guest/code",
+        "POST /api/tags",
+        "POST /api/words",
+        "PUT /api/me/theme",
+        "PUT /api/words/{id}/tags/{tagId}",
+        "PUT /api/words/{id}/tags/{tagId}/translations/{translationWordId}"
+      ]
+    },
+    {
+      "pattern": "/{basePath}/words/{id}",
+      "view": "func:gathedge.frontend.pages.WordDetailPage.render",
+      "requests": [
+        "DELETE /api/words/{id}/tags/{tagId}",
+        "DELETE /api/words/{id}/tags/{tagId}/translations/{translationWordId}",
+        "DELETE /api/words/{id}/translations/{translationId}",
+        "GET /api/me/streak",
+        "GET /api/tags",
+        "GET /api/words/{id}",
+        "POST /api/auth/logout",
+        "POST /api/guest",
+        "POST /api/guest/code",
+        "POST /api/tags",
+        "POST /api/words/{id}/translations",
+        "PUT /api/me/theme",
+        "PUT /api/words/{id}/gender",
+        "PUT /api/words/{id}/tags/{tagId}",
+        "PUT /api/words/{id}/tags/{tagId}/translations/{translationWordId}"
+      ]
+    }
+  ],
+  "links": [
+    {
+      "page": "page:/{basePath}/sign-in",
+      "to": [
+        "page:/{basePath}/about",
+        "page:/{basePath}/admin/users",
+        "page:/{basePath}/forgot-password",
+        "page:/{basePath}/games/all",
+        "page:/{basePath}/groups",
+        "page:/{basePath}/profile",
+        "page:/{basePath}/settings",
+        "page:/{basePath}/sign-in",
+        "page:/{basePath}/sign-up",
+        "page:/{basePath}/tags",
+        "page:/{basePath}/words"
+      ]
+    },
+    {
+      "page": "page:/{basePath}/g/{slug}",
+      "to": [
+        "page:/{basePath}/about",
+        "page:/{basePath}/admin/users",
+        "page:/{basePath}/g/{slug}/play/{playId}",
+        "page:/{basePath}/games/all",
+        "page:/{basePath}/games/{slug}/results",
+        "page:/{basePath}/groups",
+        "page:/{basePath}/profile",
+        "page:/{basePath}/settings",
+        "page:/{basePath}/sign-in",
+        "page:/{basePath}/sign-up",
+        "page:/{basePath}/tags",
+        "page:/{basePath}/tags/{id}",
+        "page:/{basePath}/words"
+      ]
+    },
+    {
+      "page": "page:/{basePath}",
+      "to": [
+        "page:/{basePath}/about",
+        "page:/{basePath}/admin/users",
+        "page:/{basePath}/g/{slug}",
+        "page:/{basePath}/games/all",
+        "page:/{basePath}/groups",
+        "page:/{basePath}/profile",
+        "page:/{basePath}/settings",
+        "page:/{basePath}/sign-in",
+        "page:/{basePath}/sign-up",
+        "page:/{basePath}/tags",
+        "page:/{basePath}/tags/{id}",
+        "page:/{basePath}/words"
+      ]
+    }
+  ],
+  "noInbound": [
+    "page:/{basePath}",
+    "page:/{basePath}/confirm-email-change/{token}",
+    "page:/{basePath}/forbidden",
+    "page:/{basePath}/reset-password/{token}",
+    "page:/{basePath}/verify-email/{token}"
+  ],
+  "flows": [
+    {
+      "route": "POST /api/auth/login",
+      "tables": [
+        "login_attempts:insert",
+        "sessions:insert",
+        "users:select"
+      ]
+    },
+    {
+      "route": "POST /api/auth/signup",
+      "tables": [
+        "email_verification_tokens:delete",
+        "email_verification_tokens:insert",
+        "sessions:insert",
+        "users:insert",
+        "users:select"
+      ]
+    },
+    {
+      "route": "POST /api/games/{slug}/plays",
+      "tables": [
+        "game_play_answers:select",
+        "game_play_words:insert",
+        "game_plays:insert",
+        "game_plays:select",
+        "game_tags:select",
+        "games:select",
+        "word_tag_pairs:select",
+        "words:select"
+      ]
+    },
+    {
+      "route": "POST /api/games/plays/{playId}/answers",
+      "tables": [
+        "game_play_answers:insert",
+        "game_play_answers:select",
+        "game_play_words:select",
+        "game_plays:select",
+        "game_plays:update",
+        "game_tags:select",
+        "user_streaks:insert",
+        "user_streaks:select",
+        "word_tag_pairs:select",
+        "words:select"
+      ]
+    },
+    {
+      "route": "GET /api/tags/{tagId}/entries",
+      "tables": [
+        "tags:select",
+        "word_tag_pairs:select",
+        "word_tags:select",
+        "word_translations:select",
+        "words:select"
+      ]
+    }
+  ]
+}

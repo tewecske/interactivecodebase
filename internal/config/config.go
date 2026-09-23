@@ -72,6 +72,11 @@ type Scala struct {
 	// Projects are the sbt projects to analyze, e.g. [backend, frontend];
 	// default: every project the build aggregates.
 	Projects []string `yaml:"projects"`
+	// Server is how sbt runs: reuse (default) runs it through sbt --client
+	// in an sbt server already running in the project, else in batch mode;
+	// start also starts a server when none runs (what serve -watch does
+	// unless this says otherwise); off always uses batch mode.
+	Server string `yaml:"server"`
 }
 
 // Sink is a custom sink rule.
@@ -132,6 +137,9 @@ func (c *Config) validate() error {
 	var errs []error
 	if !slices.Contains([]string{"", analysis.LangGo, analysis.LangScala}, c.Lang) {
 		errs = append(errs, fmt.Errorf("lang %q is not one of go, scala", c.Lang))
+	}
+	if !slices.Contains([]string{"", scala.ServerReuse, scala.ServerStart, scala.ServerOff}, c.Scala.Server) {
+		errs = append(errs, fmt.Errorf("scala.server %q is not one of reuse, start, off", c.Scala.Server))
 	}
 	if c.Dialect != "" && c.Dialect != "postgres" {
 		errs = append(errs, fmt.Errorf("dialect %q is not supported (only postgres)", c.Dialect))
@@ -204,7 +212,7 @@ func (c *Config) ScalaOptions() scala.Options {
 	if c == nil {
 		return scala.Options{}
 	}
-	opts := scala.Options{Extractor: c.Scala.Extractor, SBT: c.Scala.SBT, Projects: c.Scala.Projects, MigrationDirs: c.Migrations}
+	opts := scala.Options{Extractor: c.Scala.Extractor, SBT: c.Scala.SBT, Projects: c.Scala.Projects, MigrationDirs: c.Migrations, Server: c.Scala.Server}
 	for _, g := range c.Auth.Guards {
 		if opts.Guards == nil {
 			opts.Guards = map[string]string{}

@@ -66,7 +66,7 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 		return errUsage
 	}
 
-	p, release, err := openProject(ctx, fs.Arg(0), *cfgPath)
+	p, release, err := openProject(ctx, fs.Arg(0), *cfgPath, false)
 	if err != nil {
 		return err
 	}

@@ -14,8 +14,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
+	"github.com/tewecske/interactivecodebase/internal/config"
 	"github.com/tewecske/interactivecodebase/internal/live"
 	"github.com/tewecske/interactivecodebase/internal/mcpserver"
+	"github.com/tewecske/interactivecodebase/internal/scala"
 	"github.com/tewecske/interactivecodebase/internal/server"
 	"github.com/tewecske/interactivecodebase/internal/watch"
 	"github.com/tewecske/interactivecodebase/internal/webui"
@@ -42,16 +44,22 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 	if *noAuth && !isLoopback(*addr) {
 		return fmt.Errorf("-insecure-no-auth is only allowed on a loopback address, not %s: icb serves your source code", *addr)
 	}
-	cur, err := openLive(ctx, fs.Arg(0), *cfgPath)
+	// A watched Scala project keeps an sbt server running for quicker
+	// re-analyses; one icb started is stopped when icb stops.
+	sbtRunning := scala.ServerRunning(fs.Arg(0))
+	cur, err := openLive(ctx, fs.Arg(0), *cfgPath, *watch)
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, cur.Close()) }()
-	var module, took, root string
+	var module, took, root, lang string
 	_ = cur.With(func(p *analysis.Project) error {
-		module, took, root = p.Module, round(p.Stats.Total()).String(), p.Dir
+		module, took, root, lang = p.Module, round(p.Stats.Total()).String(), p.Dir, p.Lang
 		return nil
 	})
+	if *watch && lang == analysis.LangScala && !sbtRunning {
+		defer func() { err = errors.Join(err, stopSBT(context.WithoutCancel(ctx), e, root, *cfgPath)) }()
+	}
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -79,7 +87,7 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	if *watch {
-		go watchAndReanalyze(ctx, e, cur, root)
+		go watchAndReanalyze(ctx, e, cur, root, lang)
 		fmt.Fprintf(e.stdout, "icb: watching %s for changes\n", root)
 	}
 
@@ -153,8 +161,8 @@ func uiHandler() http.Handler { return webui.Handler() }
 // watchAndReanalyze re-analyzes the module whenever its sources change,
 // until ctx ends. A failed analysis is reported and the last good one
 // stays in service.
-func watchAndReanalyze(ctx context.Context, e *env, cur *live.Current, root string) {
-	watch.Run(ctx, root, watch.Options{}, func(paths []string) {
+func watchAndReanalyze(ctx context.Context, e *env, cur *live.Current, root, lang string) {
+	watch.Run(ctx, root, watch.Options{Lang: lang}, func(paths []string) {
 		fmt.Fprintf(e.stdout, "icb: %d file(s) changed (%s); re-analyzing\n", len(paths), relTo(root, paths[0]))
 		start := time.Now()
 		if err := cur.Reanalyze(ctx); err != nil {
@@ -165,6 +173,22 @@ func watchAndReanalyze(ctx context.Context, e *env, cur *live.Current, root stri
 		}
 		fmt.Fprintf(e.stdout, "icb: re-analyzed in %s (generation %d)\n", round(time.Since(start)), cur.Generation())
 	})
+}
+
+// stopSBT shuts down the sbt server serve -watch started for the Scala
+// project in root, if it still runs.
+func stopSBT(ctx context.Context, e *env, root, cfgPath string) error {
+	if !scala.ServerRunning(root) {
+		return nil
+	}
+	c, _, err := config.Load(root, cfgPath)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(e.stdout, "icb: stopping the sbt server")
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return scala.Shutdown(ctx, root, c.ScalaOptions())
 }
 
 // relTo shows path relative to root when it can.

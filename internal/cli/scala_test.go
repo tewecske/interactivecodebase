@@ -47,7 +47,7 @@ func TestScalaFixture(t *testing.T) {
 	dir := filepath.Join(fixture.RepoRoot(), "testdata", "fixtures", "scala", "zioapp")
 
 	ctx := context.Background()
-	p, release, err := openProject(ctx, dir, "")
+	p, release, err := openProject(ctx, dir, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
