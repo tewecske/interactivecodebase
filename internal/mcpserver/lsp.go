@@ -62,9 +62,21 @@ func isIdent(c byte) bool {
 	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80
 }
 
+// needGo refuses the lsp_* tools for a project without Go analysis:
+// gopls only understands Go.
+func needGo(p *analysis.Project) error {
+	if p.Go == nil {
+		return fmt.Errorf("gopls is unavailable: this is a %s project, not Go", p.Lang)
+	}
+	return nil
+}
+
 func (s *server) lspHover(ctx context.Context, _ *mcp.CallToolRequest, in PositionIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		col, err := column(r.Dir, in)
+	return s.with(func(p *analysis.Project) (string, error) {
+		if err := needGo(p); err != nil {
+			return "", err
+		}
+		col, err := column(p.Dir, in)
 		if err != nil {
 			return "", err
 		}
@@ -83,8 +95,11 @@ type locationQuery func(c *lsp.Client, ctx context.Context, file string, line, c
 
 func (s *server) lspQuery(q locationQuery) mcp.ToolHandlerFor[PositionIn, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in PositionIn) (*mcp.CallToolResult, any, error) {
-		return s.with(func(r *analysis.Result) (string, error) {
-			col, err := column(r.Dir, in)
+		return s.with(func(p *analysis.Project) (string, error) {
+			if err := needGo(p); err != nil {
+				return "", err
+			}
+			col, err := column(p.Dir, in)
 			if err != nil {
 				return "", err
 			}

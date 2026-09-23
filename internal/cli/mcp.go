@@ -37,11 +37,20 @@ func runMCP(ctx context.Context, e *env, args []string) (err error) {
 	return err
 }
 
-// goplsFor returns a gopls client for the analyzed module; it starts
-// gopls only when first used and does nothing if gopls is missing.
+// goplsFor returns a gopls client for the analyzed Go module; it starts
+// gopls only when first used and does nothing if gopls is missing. It
+// returns nil for a project in another language.
 func goplsFor(cur *live.Current) *lsp.Client {
 	var dir string
-	_ = cur.With(func(r *analysis.Result) error { dir = r.Dir; return nil })
+	_ = cur.With(func(p *analysis.Project) error {
+		if p.Go != nil {
+			dir = p.Dir
+		}
+		return nil
+	})
+	if dir == "" {
+		return nil
+	}
 	return lsp.New(dir)
 }
 
@@ -52,15 +61,19 @@ func openLive(ctx context.Context, dir, cfgPath string) (*live.Current, error) {
 	if err != nil {
 		return nil, err
 	}
-	r, release, err := openAnalysis(ctx, dir, opts)
+	p, release, err := openAnalysis(ctx, dir, opts)
 	if err != nil {
 		return nil, err
 	}
-	return live.New(r, release, func(ctx context.Context) (*analysis.Result, error) {
+	return live.New(p, release, func(ctx context.Context) (*analysis.Project, error) {
 		opts, err := loadOptions(dir, cfgPath)
 		if err != nil {
 			return nil, err
 		}
-		return analysis.Analyze(ctx, dir, opts)
+		r, err := analysis.Analyze(ctx, dir, opts)
+		if err != nil {
+			return nil, err
+		}
+		return r.Project(), nil
 	}), nil
 }

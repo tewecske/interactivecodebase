@@ -46,7 +46,7 @@ type server struct {
 	lsp *lsp.Client // optional
 
 	mu        sync.Mutex
-	tablesFor *analysis.Result
+	tablesFor *analysis.Project
 	tables    map[string][]views.TableRoute
 }
 
@@ -95,11 +95,11 @@ func text(s string) *mcp.CallToolResult {
 }
 
 // with runs fn against the current analysis.
-func (s *server) with(fn func(r *analysis.Result) (string, error)) (*mcp.CallToolResult, any, error) {
+func (s *server) with(fn func(p *analysis.Project) (string, error)) (*mcp.CallToolResult, any, error) {
 	var out string
-	err := s.cur.With(func(r *analysis.Result) error {
+	err := s.cur.With(func(p *analysis.Project) error {
 		var err error
-		out, err = fn(r)
+		out, err = fn(p)
 		return err
 	})
 	if err != nil {
@@ -116,11 +116,11 @@ type ListRoutesIn struct {
 }
 
 func (s *server) listRoutes(ctx context.Context, _ *mcp.CallToolRequest, in ListRoutesIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) { return routesText(ctx, r, in) })
+	return s.with(func(p *analysis.Project) (string, error) { return routesText(ctx, p, in) })
 }
 
-func routesText(ctx context.Context, r *analysis.Result, in ListRoutesIn) (string, error) {
-	nodes, err := r.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
+func routesText(ctx context.Context, p *analysis.Project, in ListRoutesIn) (string, error) {
+	nodes, err := p.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
 	if err != nil {
 		return "", err
 	}
@@ -154,8 +154,8 @@ func routesText(ctx context.Context, r *analysis.Result, in ListRoutesIn) (strin
 }
 
 func (s *server) listEntryPoints(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		nodes, err := r.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindEntry}})
+	return s.with(func(p *analysis.Project) (string, error) {
+		nodes, err := p.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindEntry}})
 		if err != nil {
 			return "", err
 		}
@@ -186,8 +186,8 @@ type RouteIn struct {
 }
 
 func (s *server) getRoute(ctx context.Context, _ *mcp.CallToolRequest, in RouteIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		rt, err := resolveKind(ctx, r.Graph, in.Route, graph.KindRoute)
+	return s.with(func(p *analysis.Project) (string, error) {
+		rt, err := resolveKind(ctx, p.Graph, in.Route, graph.KindRoute)
 		if err != nil {
 			return "", err
 		}
@@ -221,7 +221,7 @@ func (s *server) getRoute(ctx context.Context, _ *mcp.CallToolRequest, in RouteI
 			{"reached from", graph.EdgeNavigatesTo, graph.In},
 		}
 		for _, sec := range sections {
-			nbs, err := r.Graph.Neighbors(ctx, rt.ID, sec.dir, sec.kind)
+			nbs, err := p.Graph.Neighbors(ctx, rt.ID, sec.dir, sec.kind)
 			if err != nil {
 				return "", err
 			}
@@ -262,8 +262,8 @@ type FlowIn struct {
 }
 
 func (s *server) getFlow(ctx context.Context, _ *mcp.CallToolRequest, in FlowIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		rt, err := resolveKind(ctx, r.Graph, in.Route, graph.KindRoute, graph.KindEntry)
+	return s.with(func(p *analysis.Project) (string, error) {
+		rt, err := resolveKind(ctx, p.Graph, in.Route, graph.KindRoute, graph.KindEntry)
 		if err != nil {
 			return "", err
 		}
@@ -277,7 +277,7 @@ func (s *server) getFlow(ctx context.Context, _ *mcp.CallToolRequest, in FlowIn)
 		default:
 			return "", fmt.Errorf("prune must be sinks, module or none")
 		}
-		tree, err := flow.Build(ctx, r.Graph, rt.ID, opts)
+		tree, err := flow.Build(ctx, p.Graph, rt.ID, opts)
 		if err != nil {
 			return "", err
 		}
@@ -298,8 +298,8 @@ type NodeIn struct {
 }
 
 func (s *server) getNode(ctx context.Context, _ *mcp.CallToolRequest, in NodeIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		n, err := r.Graph.Resolve(ctx, in.ID)
+	return s.with(func(p *analysis.Project) (string, error) {
+		n, err := p.Graph.Resolve(ctx, in.ID)
 		if err != nil {
 			return "", err
 		}
@@ -326,7 +326,7 @@ func (s *server) getNode(ctx context.Context, _ *mcp.CallToolRequest, in NodeIn)
 			fmt.Fprintf(&b, "%s: %s\n", k, n.Attrs[k])
 		}
 		for _, dir := range []graph.Direction{graph.Out, graph.In} {
-			nbs, err := r.Graph.Neighbors(ctx, n.ID, dir)
+			nbs, err := p.Graph.Neighbors(ctx, n.ID, dir)
 			if err != nil {
 				return "", err
 			}
@@ -371,8 +371,8 @@ type SourceIn struct {
 }
 
 func (s *server) getSource(_ context.Context, _ *mcp.CallToolRequest, in SourceIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		root, err := os.OpenRoot(r.Dir) // confines reads to the module, symlinks included
+	return s.with(func(p *analysis.Project) (string, error) {
+		root, err := os.OpenRoot(p.Dir) // confines reads to the module, symlinks included
 		if err != nil {
 			return "", err
 		}
@@ -414,12 +414,12 @@ func (s *server) findCallees(ctx context.Context, _ *mcp.CallToolRequest, in Sym
 }
 
 func (s *server) neighbors(ctx context.Context, symbol string, dir graph.Direction, kinds ...graph.EdgeKind) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		n, err := r.Graph.Resolve(ctx, symbol)
+	return s.with(func(p *analysis.Project) (string, error) {
+		n, err := p.Graph.Resolve(ctx, symbol)
 		if err != nil {
 			return "", err
 		}
-		nbs, err := r.Graph.Neighbors(ctx, n.ID, dir, kinds...)
+		nbs, err := p.Graph.Neighbors(ctx, n.ID, dir, kinds...)
 		if err != nil {
 			return "", err
 		}
@@ -447,16 +447,16 @@ type PathsIn struct {
 }
 
 func (s *server) findPaths(ctx context.Context, _ *mcp.CallToolRequest, in PathsIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		from, err := r.Graph.Resolve(ctx, in.From)
+	return s.with(func(p *analysis.Project) (string, error) {
+		from, err := p.Graph.Resolve(ctx, in.From)
 		if err != nil {
 			return "", err
 		}
-		to, err := r.Graph.Resolve(ctx, in.To)
+		to, err := p.Graph.Resolve(ctx, in.To)
 		if err != nil {
 			return "", err
 		}
-		paths, err := r.Graph.Paths(ctx, from.ID, to.ID, graph.PathOptions{MaxDepth: in.MaxDepth, Limit: maxPaths})
+		paths, err := p.Graph.Paths(ctx, from.ID, to.ID, graph.PathOptions{MaxDepth: in.MaxDepth, Limit: maxPaths})
 		if err != nil {
 			return "", err
 		}
@@ -481,11 +481,11 @@ type TableRoutesIn struct {
 }
 
 func (s *server) routesTouchingTable(ctx context.Context, _ *mcp.CallToolRequest, in TableRoutesIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
-		if _, err := r.Graph.Node(ctx, graph.NodeID(graph.KindSQLTable, in.Table)); err != nil {
+	return s.with(func(p *analysis.Project) (string, error) {
+		if _, err := p.Graph.Node(ctx, graph.NodeID(graph.KindSQLTable, in.Table)); err != nil {
 			return "", fmt.Errorf("no table %q", in.Table)
 		}
-		byTable, err := s.tableRoutes(ctx, r)
+		byTable, err := s.tableRoutes(ctx, p)
 		if err != nil {
 			return "", err
 		}
@@ -503,26 +503,26 @@ func (s *server) routesTouchingTable(ctx context.Context, _ *mcp.CallToolRequest
 }
 
 // tableRoutes computes the table → routes index once per analysis.
-func (s *server) tableRoutes(ctx context.Context, r *analysis.Result) (map[string][]views.TableRoute, error) {
+func (s *server) tableRoutes(ctx context.Context, p *analysis.Project) (map[string][]views.TableRoute, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.tablesFor == r {
+	if s.tablesFor == p {
 		return s.tables, nil
 	}
-	m, err := views.TableRoutes(ctx, r.Graph)
+	m, err := views.TableRoutes(ctx, p.Graph)
 	if err != nil {
 		return nil, err
 	}
-	s.tablesFor, s.tables = r, m
+	s.tablesFor, s.tables = p, m
 	return m, nil
 }
 
 func (s *server) listTables(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) { return tablesText(ctx, r) })
+	return s.with(func(p *analysis.Project) (string, error) { return tablesText(ctx, p) })
 }
 
-func tablesText(ctx context.Context, r *analysis.Result) (string, error) {
-	tables, err := r.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindSQLTable}})
+func tablesText(ctx context.Context, p *analysis.Project) (string, error) {
+	tables, err := p.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindSQLTable}})
 	if err != nil {
 		return "", err
 	}
@@ -545,19 +545,19 @@ type TableIn struct {
 }
 
 func (s *server) getTable(ctx context.Context, _ *mcp.CallToolRequest, in TableIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
+	return s.with(func(p *analysis.Project) (string, error) {
 		id := graph.NodeID(graph.KindSQLTable, in.Name)
-		t, err := r.Graph.Node(ctx, id)
+		t, err := p.Graph.Node(ctx, id)
 		if err != nil {
 			return "", fmt.Errorf("no table %q", in.Name)
 		}
 		if in.Format == "mermaid" {
-			d, err := views.ER(ctx, r.Graph, in.Name, 1)
+			d, err := views.ER(ctx, p.Graph, in.Name, 1)
 			return d.Mermaid, err
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "table %s (defined at %s)\ncolumns:\n", t.Name, cmp.Or(pos(t.Pos), "not in migrations"))
-		cols, err := r.Graph.Neighbors(ctx, id, graph.Out, graph.EdgeHasColumn)
+		cols, err := p.Graph.Neighbors(ctx, id, graph.Out, graph.EdgeHasColumn)
 		if err != nil {
 			return "", err
 		}
@@ -572,7 +572,7 @@ func (s *server) getTable(ctx context.Context, _ *mcp.CallToolRequest, in TableI
 			fmt.Fprintf(&b, "  %s %s %s\n", c.Node.Name, c.Node.Detail, strings.Join(flags, " "))
 		}
 		for _, dir := range []graph.Direction{graph.Out, graph.In} {
-			fks, err := r.Graph.Neighbors(ctx, id, dir, graph.EdgeFK)
+			fks, err := p.Graph.Neighbors(ctx, id, dir, graph.EdgeFK)
 			if err != nil {
 				return "", err
 			}
@@ -588,7 +588,7 @@ func (s *server) getTable(ctx context.Context, _ *mcp.CallToolRequest, in TableI
 				}
 			}
 		}
-		byTable, err := s.tableRoutes(ctx, r)
+		byTable, err := s.tableRoutes(ctx, p)
 		if err != nil {
 			return "", err
 		}
@@ -598,7 +598,7 @@ func (s *server) getTable(ctx context.Context, _ *mcp.CallToolRequest, in TableI
 				fmt.Fprintf(&b, "  %s\t%s\n", tr.Route, tr.Op)
 			}
 		}
-		queries, err := r.Graph.Neighbors(ctx, id, graph.In, graph.EdgeQueries)
+		queries, err := p.Graph.Neighbors(ctx, id, graph.In, graph.EdgeQueries)
 		if err != nil {
 			return "", err
 		}
@@ -622,12 +622,12 @@ type SearchIn struct {
 }
 
 func (s *server) search(ctx context.Context, _ *mcp.CallToolRequest, in SearchIn) (*mcp.CallToolResult, any, error) {
-	return s.with(func(r *analysis.Result) (string, error) {
+	return s.with(func(p *analysis.Project) (string, error) {
 		opts := graph.SearchOptions{Limit: min(cmp.Or(in.Limit, 30), maxListLines)}
 		if in.Kind != "" {
 			opts.Kinds = []graph.NodeKind{graph.NodeKind(in.Kind)}
 		}
-		nodes, err := r.Graph.Search(ctx, in.Query, opts)
+		nodes, err := p.Graph.Search(ctx, in.Query, opts)
 		if err != nil {
 			return "", err
 		}
@@ -644,22 +644,22 @@ func (s *server) reanalyze(ctx context.Context, _ *mcp.CallToolRequest, _ struct
 	if err := s.cur.Reanalyze(ctx); err != nil {
 		return nil, nil, fmt.Errorf("reanalysis failed, keeping the previous analysis: %w", err)
 	}
-	return s.with(func(r *analysis.Result) (string, error) {
-		c, err := r.Graph.Counts(ctx)
+	return s.with(func(p *analysis.Project) (string, error) {
+		c, err := p.Graph.Counts(ctx)
 		if err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("analyzed %s in %v: %d routes, %d functions, %d SQL queries, %d tables\n",
-			r.Module, r.Stats.Total().Round(1e6), c.Nodes[graph.KindRoute], r.Stats.ModuleFunctions,
+			p.Module, p.Stats.Total().Round(1e6), c.Nodes[graph.KindRoute], p.Stats.ModuleFunctions,
 			c.Nodes[graph.KindSinkSQL], c.Nodes[graph.KindSQLTable]), nil
 	})
 }
 
 func (s *server) routesResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 	var out string
-	err := s.cur.With(func(r *analysis.Result) error {
+	err := s.cur.With(func(p *analysis.Project) error {
 		var err error
-		out, err = routesText(ctx, r, ListRoutesIn{})
+		out, err = routesText(ctx, p, ListRoutesIn{})
 		return err
 	})
 	return resource(req, out), err
@@ -667,12 +667,12 @@ func (s *server) routesResource(ctx context.Context, req *mcp.ReadResourceReques
 
 func (s *server) schemaResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 	var out string
-	err := s.cur.With(func(r *analysis.Result) error {
-		tables, err := tablesText(ctx, r)
+	err := s.cur.With(func(p *analysis.Project) error {
+		tables, err := tablesText(ctx, p)
 		if err != nil {
 			return err
 		}
-		er, err := views.ER(ctx, r.Graph, "", 0)
+		er, err := views.ER(ctx, p.Graph, "", 0)
 		out = tables + "\n" + er.Mermaid
 		return err
 	})

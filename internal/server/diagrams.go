@@ -20,13 +20,13 @@ import (
 // of groups: public, optional, guest, authenticated, admin), q (substring).
 func (s *Server) sitemapDiagram(r *http.Request) (any, error) {
 	ctx := r.Context()
-	routes, err := s.r.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
+	routes, err := s.p.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindRoute}})
 	if err != nil {
 		return nil, err
 	}
 	var nav []graph.Edge
 	for _, n := range routes {
-		nbs, err := s.r.Graph.Neighbors(ctx, n.ID, graph.Out, graph.EdgeNavigatesTo)
+		nbs, err := s.p.Graph.Neighbors(ctx, n.ID, graph.Out, graph.EdgeNavigatesTo)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func (s *Server) flowDiagram(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	tree, err := flow.Build(r.Context(), s.r.Graph, route.ID, opts)
+	tree, err := flow.Build(r.Context(), s.p.Graph, route.ID, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (s *Server) erDiagram(r *http.Request) (any, error) {
 		return nil, err
 	}
 	name := r.URL.Query().Get("table")
-	d, err := views.ER(r.Context(), s.r.Graph, name, depth)
+	d, err := views.ER(r.Context(), s.p.Graph, name, depth)
 	if errors.Is(err, graph.ErrNotFound) {
 		return nil, notFound("no table " + name)
 	}
@@ -75,13 +75,21 @@ func (s *Server) erDiagram(r *http.Request) (any, error) {
 
 // typesDiagram draws the types around a node: for a function, its
 // receiver, parameter and result types; for a type, itself; plus the
-// module interfaces they implement and implementations of interfaces.
+// types their fields refer to, the module interfaces they implement and
+// implementations of interfaces. Go projects get fields and methods from
+// go/types; other projects get the types and their relations from the
+// graph alone.
 func (s *Server) typesDiagram(r *http.Request) (any, error) {
 	id, err := required(r, "id")
 	if err != nil {
 		return nil, err
 	}
-	infos, err := s.typeInfos(r.Context(), id)
+	var infos []mermaid.TypeInfo
+	if s.p.Go != nil {
+		infos, err = s.typeInfos(r.Context(), id)
+	} else {
+		infos, err = s.graphTypeInfos(r.Context(), id)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -91,17 +99,111 @@ func (s *Server) typesDiagram(r *http.Request) (any, error) {
 // maxDiagramTypes bounds a class diagram.
 const maxDiagramTypes = 12
 
+// graphTypeInfos finds the types around id through uses_type edges (from a
+// function to its signature's types, from a type to its fields' types)
+// and implements edges. The graph has no members, so none are drawn.
+func (s *Server) graphTypeInfos(ctx context.Context, id string) ([]mermaid.TypeInfo, error) {
+	g := s.p.Graph
+	n, err := g.Node(ctx, id)
+	if errors.Is(err, graph.ErrNotFound) {
+		return nil, notFound("no node " + id)
+	}
+	if err != nil {
+		return nil, err
+	}
+	var all []graph.Node
+	add := func(n graph.Node) {
+		if n.Kind == graph.KindType && len(all) < maxDiagramTypes &&
+			!slices.ContainsFunc(all, func(o graph.Node) bool { return o.ID == n.ID }) {
+			all = append(all, n)
+		}
+	}
+	follow := func(id string, dir graph.Direction, kind graph.EdgeKind) error {
+		nbs, err := g.Neighbors(ctx, id, dir, kind)
+		for _, nb := range nbs {
+			add(nb.Node)
+		}
+		return err
+	}
+	if n.Kind == graph.KindType {
+		add(n)
+	} else if err := follow(id, graph.Out, graph.EdgeUsesType); err != nil {
+		return nil, err
+	}
+	// One level of field types, then implementations and interfaces, as
+	// for Go.
+	for _, t := range slices.Clone(all) {
+		if err := follow(t.ID, graph.Out, graph.EdgeUsesType); err != nil {
+			return nil, err
+		}
+	}
+	for _, t := range slices.Clone(all) {
+		for _, dir := range []graph.Direction{graph.Out, graph.In} {
+			if err := follow(t.ID, dir, graph.EdgeImplements); err != nil {
+				return nil, err
+			}
+		}
+	}
+	names := map[string]string{} // ID → diagram name
+	for _, t := range all {
+		names[t.ID] = graphTypeName(t)
+	}
+	var out []mermaid.TypeInfo
+	for _, t := range all {
+		info := mermaid.TypeInfo{ID: t.ID, Name: names[t.ID], Kind: "type"}
+		switch t.Detail {
+		case "interface", "trait":
+			info.Kind = "interface"
+		case "struct", "class":
+			info.Kind = "struct"
+		}
+		for _, rel := range []struct {
+			kind graph.EdgeKind
+			into *[]string
+		}{{graph.EdgeUsesType, &info.Uses}, {graph.EdgeImplements, &info.Implements}} {
+			nbs, err := g.Neighbors(ctx, t.ID, graph.Out, rel.kind)
+			if err != nil {
+				return nil, err
+			}
+			for _, nb := range nbs {
+				if name, ok := names[nb.Node.ID]; ok && !slices.Contains(*rel.into, name) {
+					*rel.into = append(*rel.into, name)
+				}
+			}
+		}
+		out = append(out, info)
+	}
+	return out, nil
+}
+
+// graphTypeName qualifies a type by the last element of its package, as
+// source code does: notes.Repository for example.com/app/notes, db.Repo
+// for the Scala package com.example.db.
+func graphTypeName(t graph.Node) string {
+	pkg := t.Package
+	if i := strings.LastIndex(pkg, "/"); i >= 0 {
+		pkg = pkg[i+1:]
+	} else if i := strings.LastIndex(pkg, "."); i >= 0 {
+		pkg = pkg[i+1:]
+	}
+	if pkg == "" {
+		return t.Name
+	}
+	return pkg + "." + t.Name
+}
+
+// typeInfos is the types diagram from Go type information.
 func (s *Server) typeInfos(ctx context.Context, id string) ([]mermaid.TypeInfo, error) {
 	var roots []*types.TypeName
 	switch {
 	case strings.HasPrefix(id, string(graph.KindType)+":"):
-		tn := s.r.TypeName(id)
+		tn := s.p.Go.TypeName(id)
 		if tn == nil {
 			return nil, notFound("no type " + id)
 		}
 		roots = append(roots, tn)
 	default:
-		fn := s.r.Func(id)
+		fn := s.p.Go.Func(id)
 		if fn == nil {
 			return nil, notFound("no function " + id)
 		}
@@ -128,12 +230,12 @@ func (s *Server) typeInfos(ctx context.Context, id string) ([]mermaid.TypeInfo, 
 	// Then the implementations of interfaces, and interfaces implemented.
 	for _, tn := range slices.Clone(all) {
 		for _, dir := range []graph.Direction{graph.Out, graph.In} {
-			nbs, err := s.r.Graph.Neighbors(ctx, analysis.TypeID(tn), dir, graph.EdgeImplements)
+			nbs, err := s.p.Graph.Neighbors(ctx, analysis.TypeID(tn), dir, graph.EdgeImplements)
 			if err != nil {
 				return nil, err
 			}
 			for _, nb := range nbs {
-				if other := s.r.TypeName(nb.Node.ID); other != nil && !slices.Contains(all, other) && len(all) < maxDiagramTypes {
+				if other := s.p.Go.TypeName(nb.Node.ID); other != nil && !slices.Contains(all, other) && len(all) < maxDiagramTypes {
 					all = append(all, other)
 				}
 			}
@@ -148,7 +250,7 @@ func (s *Server) collect(into []*types.TypeName, t types.Type) []*types.TypeName
 	switch t := types.Unalias(t).(type) {
 	case *types.Named:
 		obj := t.Obj()
-		if obj.Pkg() != nil && s.r.InModule(obj.Pkg().Path()) && !slices.Contains(into, obj) && len(into) < maxDiagramTypes {
+		if obj.Pkg() != nil && s.p.Go.InModule(obj.Pkg().Path()) && !slices.Contains(into, obj) && len(into) < maxDiagramTypes {
 			into = append(into, obj)
 		}
 	case *types.Pointer:
@@ -206,12 +308,12 @@ func (s *Server) describe(ctx context.Context, tns []*types.TypeName) ([]mermaid
 				}
 			}
 		}
-		nbs, err := s.r.Graph.Neighbors(ctx, info.ID, graph.Out, graph.EdgeImplements)
+		nbs, err := s.p.Graph.Neighbors(ctx, info.ID, graph.Out, graph.EdgeImplements)
 		if err != nil {
 			return nil, err
 		}
 		for _, nb := range nbs {
-			if tn := s.r.TypeName(nb.Node.ID); tn != nil && inDiagram[name(tn)] {
+			if tn := s.p.Go.TypeName(nb.Node.ID); tn != nil && inDiagram[name(tn)] {
 				info.Implements = append(info.Implements, name(tn))
 			}
 		}

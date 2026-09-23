@@ -5,11 +5,22 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/lsp"
 )
 
-// errUnavailable maps to 501: an optional capability (gopls) is missing.
+// errUnavailable maps to 501: an optional capability (gopls, Go type
+// information) is missing.
 var errUnavailable = errors.New("unavailable")
+
+// goAnalysis returns the Go analysis behind the project, or a 501 for a
+// project in another language.
+func (s *Server) goAnalysis(what string) (*analysis.Result, error) {
+	if s.p.Go == nil {
+		return nil, wrapped{errUnavailable, what + " needs Go type information; this is a " + s.p.Lang + " project"}
+	}
+	return s.p.Go, nil
+}
 
 // lspPosition reads file, line and col (1-based, bytes).
 func lspPosition(r *http.Request) (file string, line, col int, err error) {
@@ -26,6 +37,9 @@ func lspPosition(r *http.Request) (file string, line, col int, err error) {
 }
 
 func (s *Server) gopls() (*lsp.Client, error) {
+	if _, err := s.goAnalysis("gopls"); err != nil {
+		return nil, err
+	}
 	if s.lsp == nil || !s.lsp.Available() {
 		return nil, wrapped{errUnavailable, "gopls is not available (install it: go install golang.org/x/tools/gopls@latest)"}
 	}

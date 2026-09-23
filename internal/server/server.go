@@ -15,9 +15,9 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/lsp"
 )
 
-// Server serves one analyzed module.
+// Server serves one analyzed project.
 type Server struct {
-	r   *analysis.Result
+	p   *analysis.Project
 	mux *http.ServeMux
 	ui  http.Handler
 	lsp *lsp.Client // optional: gopls for hover and references
@@ -27,11 +27,11 @@ type Server struct {
 	tablesErr   error
 }
 
-// New returns a server for r. ui serves the web UI at "/"; nil serves a
-// placeholder page. lspClient adds gopls hover and references; nil
-// leaves those endpoints answering 501.
-func New(r *analysis.Result, ui http.Handler, lspClient ...*lsp.Client) *Server {
-	s := &Server{r: r, mux: http.NewServeMux(), ui: ui}
+// New returns a server for p. ui serves the web UI at "/"; nil serves a
+// placeholder page. lspClient adds gopls hover and references; nil, or a
+// project without Go analysis, leaves those endpoints answering 501.
+func New(p *analysis.Project, ui http.Handler, lspClient ...*lsp.Client) *Server {
+	s := &Server{p: p, mux: http.NewServeMux(), ui: ui}
 	if len(lspClient) > 0 {
 		s.lsp = lspClient[0]
 	}

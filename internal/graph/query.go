@@ -367,8 +367,20 @@ func countBy[K ~string](ctx context.Context, db *sql.DB, q string, into map[K]in
 	return rows.Err()
 }
 
-// Export writes the whole graph as indented JSON: {"nodes": [...], "edges": [...]},
-// nodes ordered by ID and edges by insertion.
+// FormatVersion is the version of the JSON format Export writes and Import
+// reads, described by docs/graph.schema.json.
+const FormatVersion = 1
+
+// document is the JSON format of Export and Import.
+type document struct {
+	Version int    `json:"version"`
+	Nodes   []Node `json:"nodes"`
+	Edges   []Edge `json:"edges"`
+}
+
+// Export writes the whole graph as indented JSON:
+// {"version": 1, "nodes": [...], "edges": [...]}, nodes ordered by ID and
+// edges by insertion.
 func (g *Graph) Export(ctx context.Context, w io.Writer) error {
 	nodes, err := g.Nodes(ctx, NodeFilter{})
 	if err != nil {
@@ -380,10 +392,54 @@ func (g *Graph) Export(ctx context.Context, w io.Writer) error {
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(struct {
-		Nodes []Node `json:"nodes"`
-		Edges []Edge `json:"edges"`
-	}{nonNil(nodes), nonNil(edges)})
+	return enc.Encode(document{FormatVersion, nonNil(nodes), nonNil(edges)})
+}
+
+// Import adds a graph in Export's format, in one transaction: this is how
+// analyses written by other programs (extractors for other languages) get
+// in. The version may be left out. Nodes are added before edges, so an edge
+// may name a node listed after it, but both ends must be in the document or
+// already in the graph. Edge IDs are ignored; edges keep the document order.
+func (g *Graph) Import(ctx context.Context, r io.Reader) error {
+	var doc document
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&doc); err != nil {
+		return fmt.Errorf("graph: import: %w", err)
+	}
+	if doc.Version != 0 && doc.Version != FormatVersion {
+		return fmt.Errorf("graph: import: unsupported version %d (want %d)", doc.Version, FormatVersion)
+	}
+	known := make(map[string]bool, len(doc.Nodes))
+	for _, n := range doc.Nodes {
+		known[n.ID] = true
+	}
+	for i, e := range doc.Edges {
+		for _, end := range []string{e.From, e.To} {
+			if known[end] {
+				continue
+			}
+			if _, err := g.Node(ctx, end); errors.Is(err, ErrNotFound) {
+				return fmt.Errorf("graph: import: edge %d (%s -[%s]-> %s): unknown node %q", i, e.From, e.Kind, e.To, end)
+			} else if err != nil {
+				return err
+			}
+			known[end] = true
+		}
+	}
+	return g.Write(ctx, func(w *Writer) error {
+		for _, n := range doc.Nodes {
+			if err := w.AddNode(n); err != nil {
+				return err
+			}
+		}
+		for _, e := range doc.Edges {
+			if err := w.AddEdge(e); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func nonNil[T any](s []T) []T {

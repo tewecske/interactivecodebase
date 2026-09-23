@@ -28,7 +28,7 @@ func TestLSPEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := New(r, nil, c)
+	h := New(r.Project(), nil, c)
 	serve := func(path string, v any) int {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))

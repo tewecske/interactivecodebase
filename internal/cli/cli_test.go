@@ -130,12 +130,15 @@ var sharedWebapp = sync.OnceValues(func() (*analysis.Result, error) {
 
 func TestMain(m *testing.M) {
 	analyze := openAnalysis
-	openAnalysis = func(ctx context.Context, dir string, opts analysis.Options) (*analysis.Result, func() error, error) {
+	openAnalysis = func(ctx context.Context, dir string, opts analysis.Options) (*analysis.Project, func() error, error) {
 		if dir != fixture.WebappDir() {
 			return analyze(ctx, dir, opts)
 		}
 		r, err := sharedWebapp()
-		return r, func() error { return nil }, err
+		if err != nil {
+			return nil, nil, err
+		}
+		return r.Project(), func() error { return nil }, nil
 	}
 	code := m.Run()
 	if r, err := sharedWebapp(); err == nil {

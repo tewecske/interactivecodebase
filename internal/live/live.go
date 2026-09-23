@@ -1,4 +1,4 @@
-// Package live holds the current analysis of a module and replaces it
+// Package live holds the current analysis of a project and replaces it
 // when the code is analyzed again, without disturbing readers.
 package live
 
@@ -12,7 +12,7 @@ import (
 )
 
 // AnalyzeFunc produces a fresh analysis.
-type AnalyzeFunc func(ctx context.Context) (*analysis.Result, error)
+type AnalyzeFunc func(ctx context.Context) (*analysis.Project, error)
 
 // Current is the current analysis. Readers use it through With; Reanalyze
 // swaps in a new one once in-flight readers are done, then closes the old.
@@ -20,8 +20,8 @@ type Current struct {
 	analyze AnalyzeFunc
 
 	mu      sync.RWMutex
-	r       *analysis.Result
-	release func() error // releases r
+	p       *analysis.Project
+	release func() error // releases p
 	gen     int
 
 	reanalyzing sync.Mutex // one reanalysis at a time
@@ -82,26 +82,26 @@ func (c *Current) setStatus(update func(*Status)) {
 	}
 }
 
-// New returns a holder for r, released with release (nil means r.Close)
+// New returns a holder for p, released with release (nil means p.Close)
 // once replaced or closed, re-analyzing with analyze.
-func New(r *analysis.Result, release func() error, analyze AnalyzeFunc) *Current {
+func New(p *analysis.Project, release func() error, analyze AnalyzeFunc) *Current {
 	if release == nil {
-		release = r.Close
+		release = p.Close
 	}
-	c := &Current{r: r, release: release, analyze: analyze, gen: 1}
-	c.status = Status{Generation: 1, UpdatedAt: time.Now(), DurationMS: r.Stats.Total().Milliseconds()}
+	c := &Current{p: p, release: release, analyze: analyze, gen: 1}
+	c.status = Status{Generation: 1, UpdatedAt: time.Now(), DurationMS: p.Stats.Total().Milliseconds()}
 	return c
 }
 
 // With calls fn with the current analysis, which stays valid until fn
 // returns.
-func (c *Current) With(fn func(r *analysis.Result) error) error {
+func (c *Current) With(fn func(p *analysis.Project) error) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.r == nil {
+	if c.p == nil {
 		return ErrClosed
 	}
-	return fn(c.r)
+	return fn(c.p)
 }
 
 // Generation counts analyses: 1 for the first, +1 per reanalysis.
@@ -130,12 +130,12 @@ func (c *Current) Reanalyze(ctx context.Context) error {
 		return err
 	}
 	c.mu.Lock()
-	if c.r == nil {
+	if c.p == nil {
 		c.mu.Unlock()
 		return errors.Join(ErrClosed, next.Close())
 	}
 	release := c.release
-	c.r, c.release = next, next.Close
+	c.p, c.release = next, next.Close
 	c.gen++
 	gen := c.gen
 	c.mu.Unlock()
@@ -149,10 +149,10 @@ func (c *Current) Reanalyze(ctx context.Context) error {
 func (c *Current) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.r == nil {
+	if c.p == nil {
 		return nil
 	}
 	err := c.release()
-	c.r, c.release = nil, nil
+	c.p, c.release = nil, nil
 	return err
 }
