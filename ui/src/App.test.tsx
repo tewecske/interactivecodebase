@@ -90,6 +90,13 @@ const responses: Record<string, unknown> = {
       "api/search?q=note&limit=300": results,
     };
   })(),
+  [`api/lsp/hover?${new URLSearchParams({ file: "internal/web/handlers.go", line: "3", col: "39" })}`]: {
+    markdown: "```go\nfunc (a *Authenticator) Authenticate(req *http.Request) (postgres.SessionUser, error)\n```",
+  },
+  [`api/lsp/references?${new URLSearchParams({ file: "internal/web/handlers.go", line: "3", col: "39" })}`]: [
+    { file: "internal/web/auth.go", startLine: 32, startCol: 26, endLine: 32, endCol: 38, text: "func (a *Authenticator) Authenticate(req *http.Request) (postgres.SessionUser, error) {" },
+    { file: "internal/web/handlers.go", startLine: 3, startCol: 39, endLine: 3, endCol: 51, text: "h.auth.Authenticate(nil)" },
+  ],
   "api/node?id=func%3Aexample.com%2Fapp.F": {
     node: { id: "func:example.com/app.F", kind: "func", name: "F", package: "example.com/app", pos: { file: "app.go", startLine: 3 } },
     out: { calls: [{ edge: { id: 1, from: "func:example.com/app.F", to: "func:example.com/app.G", kind: "calls", pos: {} }, node: { id: "func:example.com/app.G", kind: "func", name: "G", pos: {} } }] },
@@ -191,6 +198,15 @@ describe("App", () => {
     expect(ref?.textContent).toBe("Authenticate");
     expect(decodeURIComponent(ref!.getAttribute("href")!)).toBe("#/code?file=internal/web/auth.go&line=32");
     expect(lines[2].textContent).toBe("3func (h *noteHandler) user() { h.auth.Authenticate(nil) }");
+
+    // gopls hover after a pause, references on right-click.
+    await act(async () => ref!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
+    await act(async () => new Promise((r) => setTimeout(r, 450)));
+    expect(el.querySelector(".lsp-tip")?.textContent).toBe("func (a *Authenticator) Authenticate(req *http.Request) (postgres.SessionUser, error)");
+    await act(async () => ref!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+    await act(async () => new Promise((r) => setTimeout(r, 0)));
+    expect(el.querySelector(".usages-head")?.textContent).toContain("References to Authenticate (2)");
+    expect([...el.querySelectorAll(".usages a.pos")].map((a) => a.textContent)).toEqual(["internal/web/auth.go:32", "internal/web/handlers.go:3"]);
   });
 
   it("shows a table: columns, relations, routes and queries", async () => {

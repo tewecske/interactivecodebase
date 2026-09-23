@@ -100,6 +100,15 @@ export interface Ref {
   kind: string;
 }
 
+export interface LspLocation {
+  file: string;
+  startLine: number;
+  startCol: number;
+  endLine: number;
+  endCol: number;
+  text?: string;
+}
+
 export interface TableDetail {
   table: GraphNode;
   columns: GraphNode[];
@@ -146,6 +155,10 @@ export const api = {
   source: (file: string, start?: number, end?: number) =>
     get<Source>("source", { file, start: start?.toString(), end: end?.toString() }),
   refs: (file: string) => get<Ref[]>("refs", { file }),
+  lspHover: (file: string, line: number, col: number) =>
+    get<{ markdown: string }>("lsp/hover", { file, line: String(line), col: String(col) }),
+  lspReferences: (file: string, line: number, col: number) =>
+    get<LspLocation[]>("lsp/references", { file, line: String(line), col: String(col) }),
   tables: () => get<GraphNode[]>("tables"),
   table: (name: string) => get<TableDetail>("table", { name }),
   search: (q: string, kind?: string, limit?: number) => get<GraphNode[]>("search", { q, kind, limit: limit?.toString() }),

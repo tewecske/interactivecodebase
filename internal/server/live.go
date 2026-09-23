@@ -6,6 +6,7 @@ import (
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/live"
+	"github.com/tewecske/interactivecodebase/internal/lsp"
 )
 
 // Live serves whatever analysis is current, keeping one Server (with its
@@ -13,22 +14,24 @@ import (
 type Live struct {
 	cur *live.Current
 	ui  http.Handler
+	lsp *lsp.Client
 
 	mu  sync.Mutex
 	r   *analysis.Result
 	srv *Server
 }
 
-// NewLive returns a handler over the current analysis in cur.
-func NewLive(cur *live.Current, ui http.Handler) *Live {
-	return &Live{cur: cur, ui: ui}
+// NewLive returns a handler over the current analysis in cur, with gopls
+// features when lspClient is not nil.
+func NewLive(cur *live.Current, ui http.Handler, lspClient *lsp.Client) *Live {
+	return &Live{cur: cur, ui: ui, lsp: lspClient}
 }
 
 func (l *Live) serverFor(r *analysis.Result) *Server {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.r != r {
-		l.r, l.srv = r, New(r, l.ui)
+		l.r, l.srv = r, New(r, l.ui, l.lsp)
 	}
 	return l.srv
 }

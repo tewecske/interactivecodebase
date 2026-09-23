@@ -56,10 +56,12 @@ func runServe(ctx context.Context, e *env, args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	gopls := goplsFor(cur)
+	defer func() { err = errors.Join(err, gopls.Close()) }()
 	mux := http.NewServeMux()
-	mcpSrv := mcpserver.New(cur)
+	mcpSrv := mcpserver.New(cur, gopls)
 	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return mcpSrv }, nil))
-	mux.Handle("/", server.NewLive(cur, uiHandler()))
+	mux.Handle("/", server.NewLive(cur, uiHandler(), gopls))
 	var handler http.Handler = mux
 	generated := false
 	if !*noAuth {

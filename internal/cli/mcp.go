@@ -9,6 +9,7 @@ import (
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/live"
+	"github.com/tewecske/interactivecodebase/internal/lsp"
 	"github.com/tewecske/interactivecodebase/internal/mcpserver"
 )
 
@@ -25,12 +26,22 @@ func runMCP(ctx context.Context, e *env, args []string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, cur.Close()) }()
+	gopls := goplsFor(cur)
+	defer func() { err = errors.Join(err, gopls.Close()) }()
 	// stdout carries the protocol; nothing else may be written to it.
-	err = mcpserver.New(cur).Run(ctx, mcpTransport())
+	err = mcpserver.New(cur, gopls).Run(ctx, mcpTransport())
 	if errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) {
 		return nil
 	}
 	return err
+}
+
+// goplsFor returns a gopls client for the analyzed module; it starts
+// gopls only when first used and does nothing if gopls is missing.
+func goplsFor(cur *live.Current) *lsp.Client {
+	var dir string
+	_ = cur.With(func(r *analysis.Result) error { dir = r.Dir; return nil })
+	return lsp.New(dir)
 }
 
 // openLive analyzes dir and returns a holder that can re-analyze it.

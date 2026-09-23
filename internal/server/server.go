@@ -12,6 +12,7 @@ import (
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/lsp"
 )
 
 // Server serves one analyzed module.
@@ -19,6 +20,7 @@ type Server struct {
 	r   *analysis.Result
 	mux *http.ServeMux
 	ui  http.Handler
+	lsp *lsp.Client // optional: gopls for hover and references
 
 	tablesOnce  sync.Once
 	routesByTbl map[string][]TableRoute
@@ -26,30 +28,38 @@ type Server struct {
 }
 
 // New returns a server for r. ui serves the web UI at "/"; nil serves a
-// placeholder page.
-func New(r *analysis.Result, ui http.Handler) *Server {
+// placeholder page. lspClient adds gopls hover and references; nil
+// leaves those endpoints answering 501.
+func New(r *analysis.Result, ui http.Handler, lspClient ...*lsp.Client) *Server {
 	s := &Server{r: r, mux: http.NewServeMux(), ui: ui}
+	if len(lspClient) > 0 {
+		s.lsp = lspClient[0]
+	}
 	s.routes()
 	return s
 }
 
 func (s *Server) routes() {
 	api := map[string]func(*http.Request) (any, error){
-		"GET /api/summary":          s.summary,
-		"GET /api/routes":           s.listRoutes,
-		"GET /api/node":             s.node,
-		"GET /api/page":             s.page,
-		"GET /api/flow":             s.flow,
-		"GET /api/paths":            s.paths,
-		"GET /api/source":           s.source,
-		"GET /api/refs":             s.refs,
-		"GET /api/tables":           s.tables,
-		"GET /api/table":            s.table,
-		"GET /api/search":           s.search,
-		"GET /api/diagrams/sitemap": s.sitemapDiagram,
-		"GET /api/diagrams/flow":    s.flowDiagram,
-		"GET /api/diagrams/types":   s.typesDiagram,
-		"GET /api/diagrams/er":      s.erDiagram,
+		"GET /api/summary":            s.summary,
+		"GET /api/routes":             s.listRoutes,
+		"GET /api/node":               s.node,
+		"GET /api/page":               s.page,
+		"GET /api/flow":               s.flow,
+		"GET /api/paths":              s.paths,
+		"GET /api/source":             s.source,
+		"GET /api/refs":               s.refs,
+		"GET /api/tables":             s.tables,
+		"GET /api/table":              s.table,
+		"GET /api/search":             s.search,
+		"GET /api/diagrams/sitemap":   s.sitemapDiagram,
+		"GET /api/diagrams/flow":      s.flowDiagram,
+		"GET /api/diagrams/types":     s.typesDiagram,
+		"GET /api/diagrams/er":        s.erDiagram,
+		"GET /api/lsp/hover":          s.lspHover,
+		"GET /api/lsp/definition":     s.lspLocations((*lsp.Client).Definition),
+		"GET /api/lsp/references":     s.lspLocations((*lsp.Client).References),
+		"GET /api/lsp/implementation": s.lspLocations((*lsp.Client).Implementations),
 	}
 	for pattern, h := range api {
 		s.mux.Handle(pattern, jsonHandler(h))
@@ -94,6 +104,8 @@ func jsonHandler(h func(*http.Request) (any, error)) http.Handler {
 			status = http.StatusNotFound
 		case errors.Is(err, errBadRequest):
 			status = http.StatusBadRequest
+		case errors.Is(err, errUnavailable):
+			status = http.StatusNotImplemented
 		case err != nil:
 			status = http.StatusInternalServerError
 			slog.Error("api", "path", r.URL.Path, "err", err)

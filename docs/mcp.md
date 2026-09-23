@@ -62,6 +62,10 @@ configuration show as `{?}`.
 | `search` | Full-text search over names, packages, files, SQL text and IDs; `kind` narrows it (`route`, `method`, `sql_table`, `sink.sql`, `sink.env`, …). |
 | `reanalyze` | Analyze again after the code changed; the previous analysis stays if the code no longer builds. |
 
+With [gopls](https://go.dev/gopls) installed, three more tools answer from gopls directly: `lsp_hover` (type,
+signature and docs), `lsp_references` (every use) and `lsp_implementations`. They take `file` and `line` plus
+either `col` or the identifier's `name` on that line.
+
 Resources: `icb://routes` (the route list) and `icb://schema` (tables plus a Mermaid ER diagram).
 
 ## Example questions

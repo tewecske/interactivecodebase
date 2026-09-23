@@ -22,7 +22,7 @@ func TestGowebScenarios(t *testing.T) {
 	cur := live.New(r, nil, nil)
 	t.Cleanup(func() { _ = cur.Close() })
 	serverT, clientT := mcp.NewInMemoryTransports()
-	if _, err := New(cur).Connect(t.Context(), serverT, nil); err != nil {
+	if _, err := New(cur, nil).Connect(t.Context(), serverT, nil); err != nil {
 		t.Fatal(err)
 	}
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "scenarios"}, nil).Connect(t.Context(), clientT, nil)
