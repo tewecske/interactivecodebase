@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/tewecske/interactivecodebase/internal/fixture"
+	"github.com/tewecske/interactivecodebase/internal/flow"
 	"github.com/tewecske/interactivecodebase/internal/graph"
 )
 
@@ -103,5 +104,63 @@ func TestDataAccessLibraries(t *testing.T) {
 				t.Errorf("SQL sinks:\n%s\nwant:\n%s", gotJSON, wantJSON)
 			}
 		})
+	}
+}
+
+// entryJSON is an entry point in entries.json.
+type entryJSON struct {
+	Kind    string `json:"kind"`
+	Name    string `json:"name"`
+	Handler string `json:"handler"`
+	Parent  string `json:"parent,omitempty"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+// TestEntryPointsFixture checks the non-HTTP entry points of the fixture
+// (commands, a worker and its jobs, a goroutine, gRPC methods, NATS
+// consumers; the libraries are stubs) and that each reaches its SQL.
+func TestEntryPointsFixture(t *testing.T) {
+	dir := filepath.Join("..", "..", "testdata", "fixtures", "entrypoints")
+	data, err := os.ReadFile(filepath.Join(dir, "entries.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want []entryJSON
+	if err := json.Unmarshal(data, &want); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Analyze(t.Context(), dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = r.Close() }()
+	var got []entryJSON
+	for _, e := range r.Entries {
+		got = append(got, entryJSON{Kind: e.Kind, Name: e.Name, Handler: origin(e.Func).String(), Parent: e.Parent, Detail: e.Detail})
+	}
+	gotJSON, _ := json.MarshalIndent(got, "", "  ")
+	wantJSON, _ := json.MarshalIndent(want, "", "  ")
+	if string(gotJSON) != string(wantJSON) {
+		t.Errorf("entry points:\n%s\nwant:\n%s", gotJSON, wantJSON)
+	}
+
+	tables := map[string]string{
+		"job purge-sessions": "sessions", "job reindex-notes": "notes", "rpc notespb.Notes/GetNote": "notes",
+		"consumer notes.created": "events", "consumer notes.deleted": "notes", "command entries migrate": "events",
+		"worker entries.consumeEvents": "events",
+	}
+	for key, table := range tables {
+		tree, err := flow.Build(t.Context(), r.Graph, graph.NodeID(graph.KindEntry, key), flow.Options{})
+		if err != nil {
+			t.Errorf("%s: %v", key, err)
+			continue
+		}
+		found := false
+		flow.Walk(tree, func(s *flow.Step, _ int) {
+			found = found || (s.Node.Kind == graph.KindSQLTable && s.Node.Name == table)
+		})
+		if !found {
+			t.Errorf("flow of %s does not reach table %s", key, table)
+		}
 	}
 }

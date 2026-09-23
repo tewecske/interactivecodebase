@@ -15,6 +15,7 @@ const prunes = [
 // systems: a sequence diagram with numbered steps, or the call tree.
 export function FlowView({ params, theme }: { params: Record<string, string>; theme: Theme }) {
   const route = params.route;
+  const isEntry = route.startsWith("entry:");
   const prune = params.prune ?? "sinks";
   const method = params.method ?? "";
   const mode = params.mode === "tree" ? "tree" : "sequence";
@@ -25,7 +26,12 @@ export function FlowView({ params, theme }: { params: Record<string, string>; th
   return (
     <section>
       <h1>
-        Flow of <a href={href("route", { id: route })}>{route}</a>
+        Flow of{" "}
+        {isEntry ? (
+          <a href={href("node", { id: route })}>{route.slice("entry:".length)}</a>
+        ) : (
+          <a href={href("route", { id: route })}>{route}</a>
+        )}
       </h1>
       <div className="toolbar">
         <div className="segmented">
@@ -42,6 +48,7 @@ export function FlowView({ params, theme }: { params: Record<string, string>; th
             ))}
           </select>
         </label>
+        {!isEntry && (
         <label title="Follow the branches for another request method (handlers that switch on r.Method)">
           as method{" "}
           <select value={method} onChange={(e) => set({ method: e.target.value || undefined })}>
@@ -51,6 +58,7 @@ export function FlowView({ params, theme }: { params: Record<string, string>; th
             ))}
           </select>
         </label>
+        )}
       </div>
       {mode === "sequence" ? (
         <Loaded state={diagram}>

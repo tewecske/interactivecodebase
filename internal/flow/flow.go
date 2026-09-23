@@ -62,7 +62,7 @@ func Build(ctx context.Context, g *graph.Graph, routeID string, opts Options) (*
 	if err != nil {
 		return nil, err
 	}
-	if route.Kind != graph.KindRoute {
+	if route.Kind != graph.KindRoute && route.Kind != graph.KindEntry {
 		return nil, fmt.Errorf("%w: %s", ErrNotRoute, routeID)
 	}
 	if opts.Method == "" {

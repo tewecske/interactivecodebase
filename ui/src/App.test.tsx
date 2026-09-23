@@ -97,6 +97,15 @@ const responses: Record<string, unknown> = {
     { file: "internal/web/auth.go", startLine: 32, startCol: 26, endLine: 32, endCol: 38, text: "func (a *Authenticator) Authenticate(req *http.Request) (postgres.SessionUser, error) {" },
     { file: "internal/web/handlers.go", startLine: 3, startCol: 39, endLine: 3, endCol: 51, text: "h.auth.Authenticate(nil)" },
   ],
+  "api/entries": [
+    {
+      id: "entry:job purge-sessions",
+      kind: "entry",
+      name: "purge-sessions",
+      pos: { file: "main.go", startLine: 53 },
+      attrs: { entryKind: "job", parent: "(*worker.Worker).Run", handler: "(*example.com/app.store).purgeSessions" },
+    },
+  ],
   "api/node?id=func%3Aexample.com%2Fapp.F": {
     node: { id: "func:example.com/app.F", kind: "func", name: "F", package: "example.com/app", pos: { file: "app.go", startLine: 3 } },
     out: { calls: [{ edge: { id: 1, from: "func:example.com/app.F", to: "func:example.com/app.G", kind: "calls", pos: {} }, node: { id: "func:example.com/app.G", kind: "func", name: "G", pos: {} } }] },
@@ -131,6 +140,10 @@ describe("App", () => {
     const el = await render("#/home");
     expect(el.querySelector("h1")?.textContent).toBe("example.com/webapp");
     expect(el.textContent).toContain("13 routes");
+    const entry = el.querySelector<HTMLAnchorElement>(".entries a[title='Show its flow']");
+    expect(entry?.textContent).toBe("purge-sessions");
+    expect(entry?.getAttribute("href")).toBe("#/flow?route=entry%3Ajob+purge-sessions");
+    expect(el.querySelector(".entries")?.textContent).toContain("(*worker.Worker).Run ›");
     expect(el.querySelector(".diagram-canvas svg")).not.toBeNull();
     expect(el.querySelector(".icb-clickable")).not.toBeNull();
   });

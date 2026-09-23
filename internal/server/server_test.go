@@ -67,6 +67,10 @@ func TestSummaryAndRoutes(t *testing.T) {
 	if len(routes) != 2 || routes[0].Pattern != "/{lang}/admin/export" || routes[1].Middleware[0] != "example.com/webapp/internal/web.requireAdmin" {
 		t.Errorf("admin routes = %+v", routes)
 	}
+	var entries []map[string]any
+	if code := get(t, "/api/entries", &entries); code != 200 || entries == nil || len(entries) != 0 {
+		t.Errorf("entries %d %v: the webapp has no entry points besides routes", code, entries)
+	}
 	get(t, "/api/routes?method=GET&q=notes", &routes)
 	if len(routes) != 2 || !routes[0].Page {
 		t.Errorf("GET notes routes = %+v", routes)

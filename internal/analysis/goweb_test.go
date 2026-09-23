@@ -54,6 +54,19 @@ func TestGowebCallGraph(t *testing.T) {
 		}
 	})
 
+	t.Run("entries", func(t *testing.T) {
+		for _, want := range exp.Entries {
+			i := slices.IndexFunc(r.Entries, func(e EntryPoint) bool { return e.Kind == want.Kind && e.Name == want.Name })
+			if i < 0 {
+				t.Errorf("missing entry point %s", want.Key())
+				continue
+			}
+			if e := r.Entries[i]; origin(e.Func).String() != want.Handler || e.Parent != want.Parent {
+				t.Errorf("entry %s: handler %s parent %q, want %s %q", want.Key(), origin(e.Func), e.Parent, want.Handler, want.Parent)
+			}
+		}
+	})
+
 	t.Run("groups page requests", func(t *testing.T) {
 		var targets []string
 		for _, nb := range neighbors(t, r, graph.NodeID(graph.KindRoute, "GET /{lang}/groups"), graph.EdgeRequests) {

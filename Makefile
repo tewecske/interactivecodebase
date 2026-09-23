@@ -25,11 +25,11 @@ test:
 	# once can exhaust memory on a shared machine.
 	$(GO) test -p 2 -race -shuffle=on ./...
 
-# Checks the router and data-access library fixtures. Not under -race, which
+# Checks the router, data-access and entry-point fixtures. Not under -race, which
 # triples the memory of each analysis (the test file is excluded from race
 # builds).
 test-libs:
-	$(GO) test -run 'RouterFrameworks|DataAccessLibraries' ./internal/analysis
+	$(GO) test -run 'RouterFrameworks|DataAccessLibraries|EntryPointsFixture' ./internal/analysis
 
 # Checks the goweb golden expectations against a goweb checkout at the pinned
 # commit: ../goweb by default, or ICB_GOWEB_DIR.

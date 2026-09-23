@@ -35,7 +35,20 @@ type Expectations struct {
 	Sinks           []Sink           `json:"sinks"`
 	Flows           []Flow           `json:"flows"`
 	Pages           []Page           `json:"pages,omitempty"`
+	Entries         []Entry          `json:"entries,omitempty"`
 }
+
+// Entry is a non-HTTP entry point and what its flow must reach.
+type Entry struct {
+	Kind    string  `json:"kind"`
+	Name    string  `json:"name"`
+	Handler string  `json:"handler"`
+	Parent  string  `json:"parent,omitempty"`
+	Reaches []Reach `json:"reaches,omitempty"`
+}
+
+// Key is the entry point's "kind name", as in its graph node ID.
+func (e Entry) Key() string { return e.Kind + " " + e.Name }
 
 // Route is one registered method + pattern.
 type Route struct {

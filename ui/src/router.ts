@@ -39,6 +39,8 @@ export function nodeHref(id: string): string {
       return href("route", { id: id.slice("route:".length) });
     case "sql_table":
       return href("table", { name: id.slice("sql_table:".length) });
+    case "entry":
+      return href("flow", { route: id });
     default:
       return href("node", { id });
   }

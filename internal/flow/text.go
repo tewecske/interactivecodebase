@@ -39,6 +39,8 @@ func label(s *Step) string {
 	switch {
 	case n.Kind == graph.KindRoute:
 		b.WriteString(n.Name)
+	case n.Kind == graph.KindEntry:
+		fmt.Fprintf(&b, "%s %s", n.Attrs["entryKind"], n.Name)
 	case n.Kind == graph.KindSQLTable:
 		fmt.Fprintf(&b, "table %s (%s", n.Name, s.Edge.Attrs["op"])
 		if cols := s.Edge.Attrs["columns"]; cols != "" {

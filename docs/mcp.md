@@ -51,8 +51,9 @@ configuration show as `{?}`.
 | Tool | Answers |
 |---|---|
 | `list_routes` | Every URL: method, pattern, access (`public`, `authenticated`, `admin`, `guest`; `*` = public but reads the session), handler. Filter by `access`, `method`, `match`. |
+| `list_entry_points` | Ways in other than URLs: goroutines started from `main` and the named jobs they run, CLI commands (cobra), gRPC methods, message consumers (NATS, Pub/Sub). Each line ends with the ID to pass to `get_flow`. |
 | `get_route` | One route: access and the guard that enforces it, handler, middleware, templates, the requests and assets its page uses, navigation to and from it. |
-| `get_flow` | What a route does: its call tree through services and interface dispatch down to SQL (with tables), files, outbound HTTP, mail, processes and env reads. `format: "mermaid"` gives a sequence diagram; `prune` shows more; `method` follows another request method's branches. |
+| `get_flow` | What a route (or entry point) does: its call tree through services and interface dispatch down to SQL (with tables), files, outbound HTTP, mail, processes and env reads. `format: "mermaid"` gives a sequence diagram; `prune` shows more; `method` follows another request method's branches. |
 | `get_node` | Any node: kind, package, source range, detail (signature, SQL, URL), edges in and out. |
 | `get_source` | Source lines of a module file. |
 | `find_callers` / `find_callees` | Direct callers or callees, including interface dispatch and routes. |

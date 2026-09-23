@@ -59,8 +59,9 @@ func New(cur *live.Current, lspClient *lsp.Client) *mcp.Server {
 	})
 	tool := func(name, desc string) *mcp.Tool { return &mcp.Tool{Name: name, Description: desc} }
 	mcp.AddTool(srv, tool("list_routes", "List the HTTP routes: method, pattern, access level (public, authenticated, admin, guest; * = public but reads the session), handler and registration position. Optional filters."), s.listRoutes)
+	mcp.AddTool(srv, tool("list_entry_points", "List the entry points other than HTTP routes: goroutines started from main (workers) and the named jobs they run, CLI commands, gRPC methods and message consumers, with the function each runs. Pass an entry's ID to get_flow to see its SQL."), s.listEntryPoints)
 	mcp.AddTool(srv, tool("get_route", "Describe a route: access and its evidence, handler, middleware, templates, the requests and static assets its page uses, and where you can navigate to and from."), s.getRoute)
-	mcp.AddTool(srv, tool("get_flow", "The call flow of a route from its handler down to SQL (with tables), files, outbound HTTP, mail, processes and env reads, following interface dispatch. format=text (tree) or mermaid (sequence diagram)."), s.getFlow)
+	mcp.AddTool(srv, tool("get_flow", "The call flow of a route (or of an entry point from list_entry_points) from its handler down to SQL (with tables), files, outbound HTTP, mail, processes and env reads, following interface dispatch. format=text (tree) or mermaid (sequence diagram)."), s.getFlow)
 	mcp.AddTool(srv, tool("get_node", "Describe any graph node by ID or name: kind, package, source position, detail (signature, SQL, URL) and its incoming and outgoing edges."), s.getNode)
 	mcp.AddTool(srv, tool("get_source", "Read lines of a source file of the module (path relative to the module root)."), s.getSource)
 	mcp.AddTool(srv, tool("find_callers", "Who calls a function or method (or dispatches to it through an interface, or routes to it)."), s.findCallers)
@@ -85,7 +86,8 @@ const instructions = `icb is a static analysis of one Go web application. Start 
 Node IDs look like "route:GET /{lang}/notes", "method:(*example.com/app/web.Handler).List",
 "sql_table:notes"; tools also accept a unique name or the end of an ID. To see what an
 endpoint does, call get_flow with the route; to see who changes a table, call
-routes_touching_table.`
+routes_touching_table. Background workers, jobs, commands, gRPC methods and consumers are
+in list_entry_points; get_flow takes their IDs too.`
 
 // text returns a plain-text tool result.
 func text(s string) *mcp.CallToolResult {
@@ -149,6 +151,33 @@ func routesText(ctx context.Context, r *analysis.Result, in ListRoutesIn) (strin
 		header += fmt.Sprintf("showing the first %d; narrow with access, method or match\n", maxListLines)
 	}
 	return header + b.String(), nil
+}
+
+func (s *server) listEntryPoints(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+	return s.with(func(r *analysis.Result) (string, error) {
+		nodes, err := r.Graph.Nodes(ctx, graph.NodeFilter{Kinds: []graph.NodeKind{graph.KindEntry}})
+		if err != nil {
+			return "", err
+		}
+		slices.SortStableFunc(nodes, byPos)
+		var b strings.Builder
+		fmt.Fprintf(&b, "%d entry points (kind, name, function, position, ID)\n", len(nodes))
+		for i, n := range nodes {
+			if i >= maxListLines {
+				fmt.Fprintf(&b, "... and %d more\n", len(nodes)-i)
+				break
+			}
+			name := n.Name
+			if p := n.Attrs["parent"]; p != "" && n.Attrs["entryKind"] == analysis.EntryJob {
+				name = short(p) + " > " + name
+			}
+			if n.Detail != "" {
+				name += " (" + n.Detail + ")"
+			}
+			fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%s\n", n.Attrs["entryKind"], name, short(n.Attrs["handler"]), pos(n.Pos), n.ID)
+		}
+		return b.String(), nil
+	})
 }
 
 // RouteIn names a route.
@@ -225,7 +254,7 @@ func (s *server) getRoute(ctx context.Context, _ *mcp.CallToolRequest, in RouteI
 
 // FlowIn configures get_flow.
 type FlowIn struct {
-	Route  string `json:"route" jsonschema:"the route, e.g. \"POST /{lang}/groups\""`
+	Route  string `json:"route" jsonschema:"the route, e.g. \"POST /{lang}/groups\", or an entry point ID from list_entry_points"`
 	Method string `json:"method,omitempty" jsonschema:"follow branches for this request method instead of the route's"`
 	Prune  string `json:"prune,omitempty" jsonschema:"sinks (default: only paths reaching SQL/files/HTTP/...), module (all module code) or none"`
 	Depth  int    `json:"depth,omitempty" jsonschema:"maximum call depth (default 16)"`
@@ -234,7 +263,7 @@ type FlowIn struct {
 
 func (s *server) getFlow(ctx context.Context, _ *mcp.CallToolRequest, in FlowIn) (*mcp.CallToolResult, any, error) {
 	return s.with(func(r *analysis.Result) (string, error) {
-		rt, err := resolveKind(ctx, r.Graph, in.Route, graph.KindRoute)
+		rt, err := resolveKind(ctx, r.Graph, in.Route, graph.KindRoute, graph.KindEntry)
 		if err != nil {
 			return "", err
 		}
@@ -655,13 +684,13 @@ func resource(req *mcp.ReadResourceRequest, text string) *mcp.ReadResourceResult
 }
 
 // resolveKind resolves ref, requiring a node of kind.
-func resolveKind(ctx context.Context, g *graph.Graph, ref string, kind graph.NodeKind) (graph.Node, error) {
+func resolveKind(ctx context.Context, g *graph.Graph, ref string, kinds ...graph.NodeKind) (graph.Node, error) {
 	n, err := g.Resolve(ctx, ref)
 	if err != nil {
 		return graph.Node{}, err
 	}
-	if n.Kind != kind {
-		return graph.Node{}, fmt.Errorf("%s is a %s, not a %s", n.ID, n.Kind, kind)
+	if !slices.Contains(kinds, n.Kind) {
+		return graph.Node{}, fmt.Errorf("%s is a %s, not a %s", n.ID, n.Kind, kinds[0])
 	}
 	return n, nil
 }

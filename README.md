@@ -7,7 +7,8 @@
 See [docs/PLAN.md](docs/PLAN.md) for the design and the [roadmap issue](https://github.com/tewecske/interactivecodebase/issues/30) for progress.
 
 > Status: early development. `analyze` and `query` build the call graph (functions, calls, interface dispatch,
-> implementations), discover routes (net/http, chi, gin, echo, gorilla/mux), sinks (SQL via database/sql, sqlx, sqlc, pgx and
+> implementations), discover routes (net/http, chi, gin, echo, gorilla/mux) and other entry points (workers
+> started from main and their jobs, cobra commands, gRPC services, NATS/Pub/Sub consumers), sinks (SQL via database/sql, sqlx, sqlc, pgx and
 > gorm; files, HTTP, SMTP, exec, env), SQL tables from migrations
 > route access levels, pages (templates, HTMX requests, assets), navigation between routes (links, forms,
 > redirects) and route flows down to the tables they touch; the web UI and MCP are not implemented yet.
@@ -30,6 +31,8 @@ Querying the graph from the terminal:
 
 ```sh
 bin/icb query ../goweb routes
+bin/icb query ../goweb entries                             # workers and their jobs, commands, gRPC, consumers
+bin/icb query ../goweb flow 'entry:job token_retention'     # what a background job touches
 bin/icb query ../goweb page 'GET /{lang}/groups'            # templates, HTMX/form requests, assets
 bin/icb query ../goweb callees 'route:GET /{lang}/home'      # where you can navigate from a page
 bin/icb query ../goweb flow 'POST /{lang}/groups'           # call tree down to SQL and tables
@@ -70,6 +73,7 @@ or the git HEAD change) and serves:
 |---|---|
 | `/api/summary` | module, counts, timings |
 | `/api/routes?access=&method=&q=` | routes with access level, handler, position |
+| `/api/entries` | other entry points: workers, jobs, commands, gRPC methods, consumers |
 | `/api/node?id=` | a node with its incoming and outgoing edges |
 | `/api/page?route=` | templates, requests, assets and navigation of a page |
 | `/api/flow?route=&method=&prune=` | a route's call tree down to sinks and tables |
@@ -83,7 +87,7 @@ or the git HEAD change) and serves:
 A failed re-analysis (say, a file that does not compile) is reported while the last good analysis stays in
 service; the UI shows the status in its header and reloads its data when a new analysis is ready.
 
-`route` takes a route key such as `POST /{lang}/groups`. Requests need the access token (see below).
+`route` takes a route key such as `POST /{lang}/groups`, or an entry point ID such as `entry:job token_retention`. Requests need the access token (see below).
 
 ## gopls
 
@@ -107,7 +111,7 @@ compose file are included. See [docs/remote.md](docs/remote.md).
 claude mcp add icb -- /path/to/icb mcp /path/to/your/module
 ```
 
-Tools: `list_routes`, `get_route`, `get_flow` (text or Mermaid), `get_node`, `get_source`, `find_callers`,
+Tools: `list_routes`, `list_entry_points`, `get_route`, `get_flow` (text or Mermaid), `get_node`, `get_source`, `find_callers`,
 `find_callees`, `find_paths`, `routes_touching_table`, `list_tables`, `get_table` (text or Mermaid), `search`,
 `reanalyze`, and with gopls installed `lsp_hover`, `lsp_references`, `lsp_implementations`. Resources: `icb://routes`, `icb://schema`. See [docs/mcp.md](docs/mcp.md) for setup, IDs and examples.
 
@@ -129,6 +133,8 @@ make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_G
   mounts, middleware) with its golden `routes.json`.
 - `testdata/fixtures/data/{sqlx,sqlc,gorm,pgx}/`: one small module per data-access library with the SQL sinks and
   tables it should find in `sinks.json`.
+- `testdata/fixtures/entrypoints/`: commands, a worker with a job table, gRPC and NATS (stub modules via `replace`),
+  with its golden `entries.json`.
 - `testdata/golden/goweb.json`: expectations for [goweb](https://github.com/tewecske/goweb) at a pinned commit.
 
 `internal/fixture` loads both and, until the analyzers exist, checks that every function, type, table, foreign key, template and asset the expectations name really exists.

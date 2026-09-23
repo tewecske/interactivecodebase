@@ -32,3 +32,12 @@ func TestSequenceAltForSeveralImplementations(t *testing.T) {
 		t.Errorf("message ids = %v", d.IDs)
 	}
 }
+
+func TestSequenceStarter(t *testing.T) {
+	for kind, want := range map[string]string{"job": "Scheduler", "command": "CLI", "rpc": "Client", "consumer": "Broker"} {
+		root := &flow.Step{Node: graph.Node{ID: "entry:" + kind + " x", Kind: graph.KindEntry, Name: "x", Attrs: map[string]string{"entryKind": kind}}}
+		if d := Sequence(root); !strings.Contains(d.Mermaid, "actor "+want) {
+			t.Errorf("%s: %s", kind, d.Mermaid)
+		}
+	}
+}

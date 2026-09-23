@@ -70,7 +70,14 @@ func checkFlows(t *testing.T, g *graph.Graph, want []fixture.Flow) {
 // reaches lists "table op" and sink kinds in a route's flow.
 func reaches(t *testing.T, g *graph.Graph, route string) map[string]bool {
 	t.Helper()
-	tree, err := flow.Build(t.Context(), g, graph.NodeID(graph.KindRoute, route), flow.Options{})
+	return reachesFrom(t, g, graph.NodeID(graph.KindRoute, route))
+}
+
+// reachesFrom lists "table op" and sink kinds in the flow from a route or
+// entry point node.
+func reachesFrom(t *testing.T, g *graph.Graph, id string) map[string]bool {
+	t.Helper()
+	tree, err := flow.Build(t.Context(), g, id, flow.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
