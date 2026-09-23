@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { href, navigate, useLocation, type Location } from "./router";
+import { SearchBox } from "./components/Search";
+import { href, useLocation, type Location } from "./router";
 import { useTheme, type Theme } from "./theme";
 import { Home } from "./views/Home";
 import { CodeView } from "./views/CodeView";
 import { FlowView } from "./views/Flow";
 import { NodeView } from "./views/Node";
 import { RouteView } from "./views/Route";
+import { SearchView } from "./views/Search";
 import { SiteMap } from "./views/SiteMap";
 import { TableView, TablesView } from "./views/Tables";
 
@@ -21,6 +23,7 @@ export const views: Record<string, { title: (p: Record<string, string>) => strin
   code: { title: (p) => `${p.file}:${p.line ?? 1}`, render: ({ params, theme }) => <CodeView params={params} theme={theme} /> },
   sitemap: { title: () => "Site map", render: ({ params, theme }) => <SiteMap params={params} theme={theme} /> },
   route: { title: (p) => p.id ?? "Route", render: ({ params }) => <RouteView routeKey={params.id} /> },
+  search: { title: (p) => (p.q ? `Search “${p.q}”` : "Search"), render: ({ params }) => <SearchView params={params} /> },
   tables: { title: () => "Tables", render: ({ theme }) => <TablesView theme={theme} /> },
   table: { title: (p) => `Table ${p.name}`, render: ({ params, theme }) => <TableView params={params} theme={theme} /> },
   flow: { title: (p) => `Flow: ${p.route}`, render: ({ params, theme }) => <FlowView params={params} theme={theme} /> },
@@ -37,7 +40,6 @@ export function App() {
   const loc = useLocation();
   const [theme, toggleTheme] = useTheme();
   const [trail, setTrail] = useState<Location[]>([]);
-  const [query, setQuery] = useState("");
 
   // Keep a breadcrumb of the last few distinct locations.
   useEffect(() => {
@@ -55,21 +57,7 @@ export function App() {
         <a className="brand" href={href("home")}>
           icb
         </a>
-        <form
-          className="search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (query.trim()) navigate("search", { q: query.trim() });
-          }}
-        >
-          <input
-            id="global-search"
-            type="search"
-            placeholder="Search routes, functions, tables…  ( / )"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </form>
+        <SearchBox />
         <button className="theme" onClick={toggleTheme} title="Toggle light/dark">
           {theme === "dark" ? "☀" : "☾"}
         </button>

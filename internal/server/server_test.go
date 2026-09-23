@@ -131,6 +131,14 @@ func TestSourceAndTables(t *testing.T) {
 	if len(results) != 1 {
 		t.Errorf("search = %v", results)
 	}
+	get(t, "/api/search?kind=sink.sql", &results)
+	if len(results) != 6 {
+		t.Errorf("list sink.sql = %d", len(results))
+	}
+	var e map[string]string
+	if code := get(t, "/api/search", &e); code != 400 {
+		t.Errorf("empty search: %d", code)
+	}
 }
 
 func TestErrors(t *testing.T) {

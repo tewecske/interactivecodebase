@@ -79,6 +79,17 @@ const responses: Record<string, unknown> = {
     routes: [{ route: "POST /{lang}/notes", op: "insert" }, { route: "GET /{lang}/notes", op: "select" }],
   },
   "api/diagrams/er?table=notes&depth=1": { mermaid: "erDiagram\n  notes {\n    int8 id PK\n  }\n", ids: { t0: "sql_table:notes" } },
+  ...(() => {
+    const results = [
+      { id: "method:(*example.com/webapp/internal/notes.Service).Create", kind: "method", name: "(*Service).Create", package: "example.com/webapp/internal/notes", pos: {} },
+      { id: "route:GET /{lang}/notes", kind: "route", name: "GET /{lang}/notes", pos: {} },
+      { id: "sql_table:notes", kind: "sql_table", name: "notes", pos: {} },
+    ];
+    return {
+      "api/search?q=note&limit=30": results,
+      "api/search?q=note&limit=300": results,
+    };
+  })(),
   "api/node?id=func%3Aexample.com%2Fapp.F": {
     node: { id: "func:example.com/app.F", kind: "func", name: "F", package: "example.com/app", pos: { file: "app.go", startLine: 3 } },
     out: { calls: [{ edge: { id: 1, from: "func:example.com/app.F", to: "func:example.com/app.G", kind: "calls", pos: {} }, node: { id: "func:example.com/app.G", kind: "func", name: "G", pos: {} } }] },
@@ -193,6 +204,35 @@ describe("App", () => {
     expect(text).toContain("POST /{lang}/notes insert");
     expect(text).toContain("(*postgres.NoteRepository).Create");
     expect(el.querySelector(".diagram-canvas svg")).not.toBeNull();
+  });
+
+  it("lists search results grouped by kind, routes first", async () => {
+    mockFetch();
+    const el = await render("#/search?q=note");
+    const groups = [...el.querySelectorAll(".results .group")].map((g) => g.textContent);
+    expect(groups).toEqual(["Routes", "Tables", "Methods"]);
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" })));
+    expect(el.querySelector(".result.active")?.textContent).toContain("GET /{lang}/notes");
+  });
+
+  it("searches as you type and opens a result with the keyboard", async () => {
+    mockFetch();
+    const el = await render("#/home");
+    const input = el.querySelector<HTMLInputElement>("#global-search")!;
+    await act(async () => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "note");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => new Promise((r) => setTimeout(r, 250))); // debounce + fetch
+    expect(el.querySelectorAll(".dropdown .result")).toHaveLength(3);
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    });
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(decodeURIComponent(window.location.hash)).toBe("#/table?name=notes");
   });
 
   it("toggles the theme", async () => {

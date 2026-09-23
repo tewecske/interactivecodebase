@@ -143,7 +143,7 @@ export const api = {
   refs: (file: string) => get<Ref[]>("refs", { file }),
   tables: () => get<GraphNode[]>("tables"),
   table: (name: string) => get<TableDetail>("table", { name }),
-  search: (q: string, kind?: string) => get<GraphNode[]>("search", { q, kind }),
+  search: (q: string, kind?: string, limit?: number) => get<GraphNode[]>("search", { q, kind, limit: limit?.toString() }),
   diagram: (kind: "sitemap" | "flow" | "types" | "er", params: Record<string, string | undefined>) =>
     get<Diagram>(`diagrams/${kind}`, params),
 };
