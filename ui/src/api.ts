@@ -127,6 +127,11 @@ async function get<T>(path: string, params: Record<string, string | undefined> =
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
   const res = await fetch(`api/${path}${q.size ? `?${q}` : ""}`);
+  if (res.status === 401) {
+    // Signed out (or the token changed): the server shows its sign-in page.
+    window.location.reload();
+    throw new ApiError(401, "authentication required");
+  }
   const body = await res.json();
   if (!res.ok) throw new ApiError(res.status, body.error ?? res.statusText);
   return body as T;

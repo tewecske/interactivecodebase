@@ -1,0 +1,5 @@
+.git
+bin
+ui/node_modules
+internal/webui/dist/*
+!internal/webui/dist/.gitkeep
