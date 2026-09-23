@@ -12,6 +12,7 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/fixture"
 	"github.com/tewecske/interactivecodebase/internal/live"
+	"github.com/tewecske/interactivecodebase/internal/lsp"
 )
 
 var webapp = sync.OnceValues(func() (*analysis.Result, error) {
@@ -38,7 +39,7 @@ func connect(t *testing.T, analyze live.AnalyzeFunc) *mcp.ClientSession {
 	t.Cleanup(func() { _ = cur.Close() })
 	serverT, clientT := mcp.NewInMemoryTransports()
 	ctx := t.Context()
-	if _, err := New(cur).Connect(ctx, serverT, nil); err != nil {
+	if _, err := New(cur, nil).Connect(ctx, serverT, nil); err != nil {
 		t.Fatal(err)
 	}
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, clientT, nil)
@@ -186,4 +187,40 @@ func sorted(s []string) []string {
 		}
 	}
 	return out
+}
+
+func TestLSPTools(t *testing.T) {
+	c := lsp.New(fixture.WebappDir())
+	if !c.Available() {
+		t.Skip("gopls not installed")
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	r, err := webapp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur := live.New(r, func() error { return nil }, nil)
+	serverT, clientT := mcp.NewInMemoryTransports()
+	if _, err := New(cur, c).Connect(t.Context(), serverT, nil); err != nil {
+		t.Fatal(err)
+	}
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(t.Context(), clientT, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cs.Close() })
+	at := map[string]any{"file": "internal/web/handlers.go", "line": 29, "name": "Authenticate"}
+	if out, isErr := call(t, cs, "lsp_hover", at); isErr || !strings.Contains(out, "Authenticate(req *http.Request)") {
+		t.Errorf("lsp_hover: %v %s", isErr, out)
+	}
+	if out, isErr := call(t, cs, "lsp_references", at); isErr || !strings.Contains(out, "internal/web/auth.go:") {
+		t.Errorf("lsp_references: %v %s", isErr, out)
+	}
+	iface := map[string]any{"file": "internal/notes/service.go", "line": 24, "name": "Repository"}
+	if out, isErr := call(t, cs, "lsp_implementations", iface); isErr || !strings.Contains(out, "internal/store/postgres/notes.go:") {
+		t.Errorf("lsp_implementations: %v %s", isErr, out)
+	}
+	if out, isErr := call(t, cs, "lsp_hover", map[string]any{"file": "internal/web/handlers.go", "line": 29, "name": "Nope"}); !isErr || !strings.Contains(out, "not on line 29") {
+		t.Errorf("unknown name: %v %s", isErr, out)
+	}
 }

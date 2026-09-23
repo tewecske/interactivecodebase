@@ -68,6 +68,12 @@ The web UI is built with Node 22+ by `make ui` (part of `make build`) and embedd
 
 `route` takes a route key such as `POST /{lang}/groups`. Requests need the access token (see below).
 
+## gopls
+
+If [gopls](https://go.dev/gopls) is installed (`go install golang.org/x/tools/gopls@latest`), `icb serve` and
+`icb mcp` start it on first use: the code viewer shows its hover (type and docs) over identifiers and lists
+references on right-click, and MCP gains `lsp_*` tools. Without gopls everything else works from the static index.
+
 ## Access and deployment
 
 `icb serve` always requires a token: it prints a random one with a sign-in URL, or uses `-token` / `ICB_TOKEN`.
@@ -86,7 +92,7 @@ claude mcp add icb -- /path/to/icb mcp /path/to/your/module
 
 Tools: `list_routes`, `get_route`, `get_flow` (text or Mermaid), `get_node`, `get_source`, `find_callers`,
 `find_callees`, `find_paths`, `routes_touching_table`, `list_tables`, `get_table` (text or Mermaid), `search`,
-`reanalyze`. Resources: `icb://routes`, `icb://schema`. See [docs/mcp.md](docs/mcp.md) for setup, IDs and examples.
+`reanalyze`, and with gopls installed `lsp_hover`, `lsp_references`, `lsp_implementations`. Resources: `icb://routes`, `icb://schema`. See [docs/mcp.md](docs/mcp.md) for setup, IDs and examples.
 
 ## Development
 

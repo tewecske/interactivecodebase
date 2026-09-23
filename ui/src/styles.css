@@ -150,3 +150,6 @@ pre.detail.small { margin: 4px 0; font-size: 11.5px; }
 .results .result { display: block; padding: 4px 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .results .result .name { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .results .result.active, .results .result:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); text-decoration: none; }
+.lsp-tip { position: fixed; z-index: 20; max-width: min(640px, 90vw); max-height: 40vh; overflow: auto; margin: 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); white-space: pre-wrap; font-size: 12px; pointer-events: none; }
+.usages { border-top: 1px solid var(--border); margin-top: 6px; padding: 8px 12px; font-family: system-ui, sans-serif; }
+.usages-head { display: flex; gap: 8px; align-items: center; }

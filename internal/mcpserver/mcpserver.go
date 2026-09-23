@@ -25,6 +25,7 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/flow"
 	"github.com/tewecske/interactivecodebase/internal/graph"
 	"github.com/tewecske/interactivecodebase/internal/live"
+	"github.com/tewecske/interactivecodebase/internal/lsp"
 	"github.com/tewecske/interactivecodebase/internal/mermaid"
 	"github.com/tewecske/interactivecodebase/internal/views"
 )
@@ -42,15 +43,17 @@ const (
 
 type server struct {
 	cur *live.Current
+	lsp *lsp.Client // optional
 
 	mu        sync.Mutex
 	tablesFor *analysis.Result
 	tables    map[string][]views.TableRoute
 }
 
-// New returns an MCP server over the current analysis in cur.
-func New(cur *live.Current) *mcp.Server {
-	s := &server{cur: cur}
+// New returns an MCP server over the current analysis in cur. With a
+// gopls client it also offers the lsp_* tools.
+func New(cur *live.Current, lspClient *lsp.Client) *mcp.Server {
+	s := &server{cur: cur, lsp: lspClient}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "icb", Title: "interactivecodebase", Version: Version}, &mcp.ServerOptions{
 		Instructions: instructions,
 	})
@@ -68,6 +71,11 @@ func New(cur *live.Current) *mcp.Server {
 	mcp.AddTool(srv, tool("get_table", "Describe a table: columns, primary key, foreign keys both ways with ON DELETE, the queries and routes that use it. format=mermaid for an ER diagram of it and its neighbours."), s.getTable)
 	mcp.AddTool(srv, tool("search", "Full-text search over nodes (routes, functions, types, tables, SQL text, templates); substrings and qualified names match."), s.search)
 	mcp.AddTool(srv, tool("reanalyze", "Analyze the module again after code changes and report the new counts."), s.reanalyze)
+	if lspClient != nil && lspClient.Available() {
+		mcp.AddTool(srv, tool("lsp_hover", "gopls hover for an identifier: its type, signature and documentation. Give file and line, and either col or the identifier's name on that line."), s.lspHover)
+		mcp.AddTool(srv, tool("lsp_references", "gopls: every use of an identifier across the module (and its declaration). Give file and line, and either col or name."), s.lspQuery((*lsp.Client).References))
+		mcp.AddTool(srv, tool("lsp_implementations", "gopls: implementations of an interface or interface method, or the interfaces a type implements. Give file and line, and either col or name."), s.lspQuery((*lsp.Client).Implementations))
+	}
 	srv.AddResource(&mcp.Resource{URI: "icb://routes", Name: "routes", Description: "All HTTP routes with access level and handler", MIMEType: "text/plain"}, s.routesResource)
 	srv.AddResource(&mcp.Resource{URI: "icb://schema", Name: "schema", Description: "Database tables with columns, and the schema as a Mermaid ER diagram", MIMEType: "text/plain"}, s.schemaResource)
 	return srv
