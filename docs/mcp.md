@@ -23,10 +23,10 @@ protocol; errors go to stderr.
 next to the web UI and JSON API.
 
 ```sh
-claude mcp add --transport http icb http://127.0.0.1:8080/mcp
+claude mcp add --transport http icb http://127.0.0.1:8080/mcp --header "Authorization: Bearer $ICB_TOKEN"
 ```
 
-Remote access with authentication comes with #23; until then keep the default loopback address.
+`icb serve` always requires a token (printed at start, or set with `ICB_TOKEN`); see [remote.md](remote.md).
 
 ## Referring to things
 

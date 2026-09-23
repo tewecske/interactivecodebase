@@ -1,0 +1,17 @@
+# Serve a local module with icb: docker compose -f deploy/compose.yaml up
+# Then open http://127.0.0.1:8080/?token=$ICB_TOKEN
+services:
+  icb:
+    build: ..
+    environment:
+      ICB_TOKEN: ${ICB_TOKEN:?set ICB_TOKEN to a long random string}
+    volumes:
+      - ${MODULE_DIR:-../../goweb}:/src:ro
+      - gomod:/go/pkg/mod
+    ports:
+      # Loopback only; put a TLS reverse proxy or Tailscale in front to
+      # reach it from other machines (see docs/remote.md).
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+volumes:
+  gomod:

@@ -3,9 +3,20 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	crand "crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"io"
+	"math/big"
+	"net"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -255,7 +266,7 @@ func TestServe(t *testing.T) {
 	var stdout, stderr syncBuffer
 	done := make(chan int, 1)
 	go func() {
-		done <- Run(ctx, []string{"serve", "-addr", "127.0.0.1:0", fixture.WebappDir()}, &stdout, &stderr)
+		done <- Run(ctx, []string{"serve", "-addr", "127.0.0.1:0", "-token", "s3cret", fixture.WebappDir()}, &stdout, &stderr)
 	}()
 
 	var base string
@@ -274,7 +285,17 @@ func TestServe(t *testing.T) {
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
-	resp, err := http.Get(base + "/api/summary")
+	unauth, err := http.Get(base + "/api/summary")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = unauth.Body.Close()
+	if unauth.StatusCode != http.StatusUnauthorized {
+		t.Errorf("without a token: status %d", unauth.StatusCode)
+	}
+	req, _ := http.NewRequest(http.MethodGet, base+"/api/summary", nil)
+	req.Header.Set("Authorization", "Bearer s3cret")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +306,7 @@ func TestServe(t *testing.T) {
 	}
 	// The same server speaks MCP over streamable HTTP at /mcp.
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(t.Context(),
-		&mcp.StreamableClientTransport{Endpoint: base + "/mcp", MaxRetries: -1}, nil)
+		&mcp.StreamableClientTransport{Endpoint: base + "/mcp", MaxRetries: -1, HTTPClient: bearerClient("s3cret")}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,4 +360,131 @@ func TestMCPCommand(t *testing.T) {
 	if stdout.String() != "" {
 		t.Errorf("icb mcp wrote to stdout outside the protocol: %q", stdout.String())
 	}
+}
+
+// bearerClient sends a bearer token with every request.
+func bearerClient(token string) *http.Client {
+	return &http.Client{Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+		r = r.Clone(r.Context())
+		r.Header.Set("Authorization", "Bearer "+token)
+		return http.DefaultTransport.RoundTrip(r)
+	})}
+}
+
+type roundTripper func(*http.Request) (*http.Response, error)
+
+func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestServeFlags(t *testing.T) {
+	dir := fixture.WebappDir()
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"serve", "-insecure-no-auth", "-addr", "0.0.0.0:0", dir}, "only allowed on a loopback address"},
+		{[]string{"serve", "-insecure-no-auth", "-addr", ":0", dir}, "only allowed on a loopback address"},
+		{[]string{"serve", "-tls-cert", "c.pem", dir}, "-tls-cert and -tls-key go together"},
+	}
+	for _, tt := range tests {
+		code, _, stderr := run(t, tt.args...)
+		if code != ExitError || !strings.Contains(stderr, tt.want) {
+			t.Errorf("%v: %d %q", tt.args, code, stderr)
+		}
+	}
+}
+
+func TestIsLoopback(t *testing.T) {
+	for addr, want := range map[string]bool{
+		"127.0.0.1:8080": true, "localhost:1": true, "[::1]:80": true,
+		"0.0.0.0:8080": false, ":8080": false, "192.168.1.5:80": false, "bad": false,
+	} {
+		if got := isLoopback(addr); got != want {
+			t.Errorf("isLoopback(%q) = %v", addr, got)
+		}
+	}
+}
+
+func TestServeTLS(t *testing.T) {
+	certFile, keyFile, pool := selfSigned(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var stdout, stderr syncBuffer
+	done := make(chan int, 1)
+	go func() {
+		done <- Run(ctx, []string{"serve", "-addr", "127.0.0.1:0", "-tls-cert", certFile, "-tls-key", keyFile, fixture.WebappDir()}, &stdout, &stderr)
+	}()
+	var open string
+	deadline := time.Now().Add(30 * time.Second)
+	for open == "" && time.Now().Before(deadline) {
+		if _, after, ok := strings.Cut(stdout.String(), "icb: open "); ok {
+			open = strings.Fields(after)[0]
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !strings.HasPrefix(open, "https://") || !strings.Contains(open, "?token=") {
+		t.Fatalf("no https sign-in URL with a generated token in %q (%s)", stdout.String(), stderr.String())
+	}
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Jar: jar, Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}}
+	resp, err := client.Get(open) // sets the cookie, redirects to /
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	api, err := client.Get(strings.Split(open, "?")[0] + "api/summary")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = api.Body.Close()
+	if resp.StatusCode != 200 || api.StatusCode != 200 {
+		t.Errorf("sign-in %d, API with cookie %d", resp.StatusCode, api.StatusCode)
+	}
+	u, _ := url.Parse(open)
+	for _, c := range jar.Cookies(u) {
+		if c.Name == "icb_token" {
+			return
+		}
+	}
+	t.Error("no icb_token cookie after sign-in")
+}
+
+// selfSigned writes a certificate for 127.0.0.1 and its key.
+func selfSigned(t *testing.T) (certFile, keyFile string, pool *x509.CertPool) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), crand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "icb test"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+		DNSNames:              []string{"localhost"},
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(crand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	certFile, keyFile = filepath.Join(dir, "cert.pem"), filepath.Join(dir, "key.pem")
+	if err := os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cert, _ := x509.ParseCertificate(der)
+	pool = x509.NewCertPool()
+	pool.AddCert(cert)
+	return certFile, keyFile, pool
 }

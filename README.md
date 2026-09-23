@@ -66,8 +66,14 @@ The web UI is built with Node 22+ by `make ui` (part of `make build`) and embedd
 | `/api/search?q=&kind=` | full-text search over nodes |
 | `/api/diagrams/{sitemap,flow,types,er}` | Mermaid source plus the graph IDs behind its nodes |
 
-`route` takes a route key such as `POST /{lang}/groups`. Remote access with authentication comes with #23;
-until then keep the default `127.0.0.1` address.
+`route` takes a route key such as `POST /{lang}/groups`. Requests need the access token (see below).
+
+## Access and deployment
+
+`icb serve` always requires a token: it prints a random one with a sign-in URL, or uses `-token` / `ICB_TOKEN`.
+Browsers sign in once and get a cookie; API and MCP clients send `Authorization: Bearer <token>`. Serve HTTPS
+with `-tls-cert`/`-tls-key`, or keep the loopback default behind Tailscale or a TLS proxy. A Docker image and a
+compose file are included. See [docs/remote.md](docs/remote.md).
 
 ## MCP
 
