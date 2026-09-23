@@ -41,3 +41,29 @@ func TestSequenceStarter(t *testing.T) {
 		}
 	}
 }
+
+func TestSequenceParForParallelCalls(t *testing.T) {
+	n := func(id, name string) graph.Node {
+		return graph.Node{ID: id, Kind: graph.KindMethod, Name: name, Package: "app/db"}
+	}
+	par := func(group, branch string) graph.Edge {
+		return graph.Edge{Kind: graph.EdgeCalls, Attrs: map[string]string{"parallel": group, "branch": branch}}
+	}
+	root := &flow.Step{Node: graph.Node{ID: "route:GET /x", Kind: graph.KindRoute, Name: "GET /x"}, Children: []*flow.Step{{
+		Node: graph.Node{ID: "method:svc", Kind: graph.KindMethod, Name: "Svc.page", Package: "app/service"},
+		Children: []*flow.Step{
+			{Node: n("method:rows", "Repo.rows"), Edge: par("s.scala:1:1", "1")},
+			{Node: n("method:count", "Repo.count"), Edge: par("s.scala:1:1", "2")},
+			{Node: n("method:ids", "Repo.ids")},
+			{Node: n("method:tags", "Repo.tags"), Edge: par("s.scala:3:1", "each")},
+		},
+	}}}
+	d := Sequence(root)
+	// The db participant is declared at its first message, inside the block.
+	got := strings.Replace(d.Mermaid, "  participant db as db\n", "", 1)
+	want := "  par branch 1\n  service->>db: Repo.rows\n  and branch 2\n  service->>db: Repo.count\n  end\n" +
+		"  service->>db: Repo.ids\n  par each element\n  service->>db: Repo.tags\n  end\n"
+	if !strings.Contains(got, want) {
+		t.Errorf("missing\n%s\nin:\n%s", want, d.Mermaid)
+	}
+}

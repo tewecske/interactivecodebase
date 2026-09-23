@@ -82,6 +82,7 @@ main { padding: 12px 24px 48px; min-width: 0; }
 h1 { font-size: 20px; margin: 8px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 h2 { font-size: 15px; margin: 24px 0 8px; }
 .muted { color: var(--muted); }
+.parallel { color: var(--accent); font-weight: 600; cursor: help; }
 .error { color: var(--admin); white-space: pre-wrap; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin: 16px 0; }
 .card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--panel); color: var(--text); }

@@ -44,5 +44,15 @@ final case class NoteServiceLive(repo: NoteRepository) extends NoteService {
 
   def remove(id: Long): Task[Boolean] = repo.remove(id).map(_ > 0)
 
+  /** All notes, the first one and the ones with ids, the queries running
+    * alongside each other.
+    */
+  def overview(ids: List[Long]): Task[(List[NoteRow], Option[NoteRow], List[Option[NoteRow]])] =
+    for {
+      _     <- ZIO.unit
+      first  = repo.find(1L)
+      found <- repo.all <&> first <&> ZIO.foreachPar(ids)(id => repo.find(id))
+    } yield found
+
   private def toNote(row: NoteRow): Note = Note(row.id, row.title, row.body)
 }

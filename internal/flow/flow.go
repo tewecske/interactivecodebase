@@ -4,10 +4,12 @@
 package flow
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/tewecske/interactivecodebase/internal/graph"
@@ -154,7 +156,56 @@ func (b *builder) expand(n graph.Node, in graph.Edge, path []string, depth int) 
 	if b.opts.Prune == PruneSinks && !b.leads[n.ID] {
 		return nil, nil
 	}
+	step.Children = groupParallel(step.Children)
 	return step, nil
+}
+
+// groupParallel moves the steps of each parallel group next to its first
+// one, ordered by branch, so that a group reads as one block even when a
+// branch's effect is defined before the others.
+func groupParallel(steps []*Step) []*Step {
+	var out []*Step
+	groups := map[string][]*Step{}
+	for _, s := range steps {
+		g, _ := Parallel(s)
+		if g == "" {
+			out = append(out, s)
+			continue
+		}
+		if _, ok := groups[g]; !ok {
+			out = append(out, &Step{Edge: graph.Edge{Attrs: map[string]string{"parallel": g}}}) // placeholder
+		}
+		groups[g] = append(groups[g], s)
+	}
+	if len(groups) == 0 {
+		return steps
+	}
+	grouped := make([]*Step, 0, len(steps))
+	for _, s := range out {
+		if s.Node.ID != "" {
+			grouped = append(grouped, s)
+			continue
+		}
+		members := groups[s.Edge.Attrs["parallel"]]
+		slices.SortStableFunc(members, func(a, b *Step) int { return compareBranch(a.Edge.Attrs["branch"], b.Edge.Attrs["branch"]) })
+		grouped = append(grouped, members...)
+	}
+	return grouped
+}
+
+// compareBranch orders branches by number, "each" and others after.
+func compareBranch(a, b string) int {
+	an, aerr := strconv.Atoi(a)
+	bn, berr := strconv.Atoi(b)
+	switch {
+	case aerr == nil && berr == nil:
+		return cmp.Compare(an, bn)
+	case aerr == nil:
+		return -1
+	case berr == nil:
+		return 1
+	}
+	return strings.Compare(a, b)
 }
 
 // runs reports whether a call edge executes for the flow's method, given
@@ -181,6 +232,14 @@ func (b *builder) addTables(s *Step) error {
 		s.Children = append(s.Children, &Step{Node: nb.Node, Edge: nb.Edge})
 	}
 	return nil
+}
+
+// Parallel returns the parallel group of the call a step is reached by and
+// its branch: steps with the same group run alongside each other, those of
+// one branch in sequence ("each" for a branch run once per element of a
+// collection, concurrently). Both are empty for a sequential call.
+func Parallel(s *Step) (group, branch string) {
+	return s.Edge.Attrs["parallel"], s.Edge.Attrs["branch"]
 }
 
 func isSink(n graph.Node) bool { return strings.HasPrefix(string(n.Kind), "sink.") }

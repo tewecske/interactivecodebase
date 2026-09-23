@@ -96,11 +96,17 @@ function TreeStep({ step }: { step: FlowStep }) {
   const n = step.node;
   const isTable = n.kind === "sql_table";
   const note = step.cycle ? " (recursive)" : step.ref ? " (see above)" : step.truncated ? " (depth limit)" : "";
+  const branch = step.edge.attrs?.branch;
   return (
     <li>
       <KindBadge kind={isTable ? `${step.edge.attrs?.op ?? ""} table` : n.kind} />{" "}
       <a href={nodeHref(n.id)}>{n.name}</a>
       {step.calls && step.calls > 1 ? ` ×${step.calls}` : ""}
+      {branch && (
+        <span className="parallel" title={`runs in parallel (${step.edge.attrs?.parallel})`}>
+          {" "}∥ {branch === "each" ? "each" : branch}
+        </span>
+      )}
       <span className="muted">{note}</span> {!isTable && <PosLink pos={n.pos} />}
       {n.kind.startsWith("sink.") && n.detail && <pre className="detail small">{n.detail}</pre>}
       {step.children && step.children.length > 0 && (
