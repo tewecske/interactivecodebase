@@ -126,3 +126,7 @@ details summary { cursor: pointer; padding: 2px 0; }
 .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12.5px; }
 table.routes td .badge { margin-left: 6px; }
 .legend { font-size: 12px; margin-top: 8px; }
+.method { font-family: ui-monospace, Menlo, monospace; font-size: 14px; padding: 1px 6px; border-radius: 4px; background: var(--code-bg); }
+.actions { display: flex; gap: 8px; margin: 8px 0 16px; }
+a.button { border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; background: var(--panel); color: var(--text); }
+a.button:hover { text-decoration: none; border-color: var(--accent); }
