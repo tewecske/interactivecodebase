@@ -36,25 +36,25 @@ type env struct {
 var commands = []command{
 	{
 		name:    "analyze",
-		summary: "Analyze a Go module and print a summary of what was found",
+		summary: "Analyze a Go module or sbt project and print a summary of what was found",
 		usage:   "icb analyze [flags] <dir>",
 		run:     runAnalyze,
 	},
 	{
 		name:    "serve",
-		summary: "Analyze a Go module and serve the web UI, JSON API and MCP endpoint",
+		summary: "Analyze a Go module or sbt project and serve the web UI, JSON API and MCP endpoint",
 		usage:   "icb serve [flags] <dir>",
 		run:     runServe,
 	},
 	{
 		name:    "mcp",
-		summary: "Analyze a Go module and serve MCP over stdio",
+		summary: "Analyze a Go module or sbt project and serve MCP over stdio",
 		usage:   "icb mcp [flags] <dir>",
 		run:     runMCP,
 	},
 	{
 		name:    "query",
-		summary: "Analyze a Go module and run a query against the graph",
+		summary: "Analyze a Go module or sbt project and run a query against the graph",
 		usage:   "icb query [flags] <dir> <command> [args]",
 		run:     runQuery,
 	},

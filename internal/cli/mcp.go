@@ -57,23 +57,11 @@ func goplsFor(cur *live.Current) *lsp.Client {
 // openLive analyzes dir and returns a holder that can re-analyze it,
 // reading the config again each time.
 func openLive(ctx context.Context, dir, cfgPath string) (*live.Current, error) {
-	opts, err := loadOptions(dir, cfgPath)
-	if err != nil {
-		return nil, err
-	}
-	p, release, err := openAnalysis(ctx, dir, opts)
+	p, release, err := openProject(ctx, dir, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 	return live.New(p, release, func(ctx context.Context) (*analysis.Project, error) {
-		opts, err := loadOptions(dir, cfgPath)
-		if err != nil {
-			return nil, err
-		}
-		r, err := analysis.Analyze(ctx, dir, opts)
-		if err != nil {
-			return nil, err
-		}
-		return r.Project(), nil
+		return analyzeProject(ctx, dir, cfgPath)
 	}), nil
 }
