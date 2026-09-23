@@ -67,6 +67,18 @@ const responses: Record<string, unknown> = {
   [`api/refs?${new URLSearchParams({ file: "internal/web/handlers.go" })}`]: [
     { line: 3, col: 39, endCol: 51, name: "Authenticate", kind: "method", target: { file: "internal/web/auth.go", startLine: 32 }, node: "method:(*example.com/webapp/internal/web.Authenticator).Authenticate" },
   ],
+  "api/table?name=notes": {
+    table: { id: "sql_table:notes", kind: "sql_table", name: "notes", pos: { file: "migrations/0002_notes.up.sql", startLine: 1 } },
+    columns: [
+      { id: "sql_column:notes.id", kind: "sql_column", name: "id", detail: "bigserial", pos: {}, attrs: { primaryKey: "true", notNull: "true" } },
+      { id: "sql_column:notes.owner_id", kind: "sql_column", name: "owner_id", detail: "int8", pos: {}, attrs: { notNull: "true" } },
+    ],
+    references: [{ edge: { id: 1, from: "sql_table:notes", to: "sql_table:users", kind: "fk", pos: {}, attrs: { columns: "owner_id", references: "users.id", onDelete: "cascade" } }, node: { id: "sql_table:users", kind: "sql_table", name: "users", pos: {} } }],
+    referencedBy: [{ edge: { id: 2, from: "sql_table:audit_events", to: "sql_table:notes", kind: "fk", pos: {}, attrs: { columns: "note_id", onDelete: "set null" } }, node: { id: "sql_table:audit_events", kind: "sql_table", name: "audit_events", pos: {} } }],
+    queries: [{ edge: { id: 3, from: "", to: "", kind: "queries", pos: {}, attrs: { op: "insert" } }, node: { id: "sink.sql:x", kind: "sink.sql", name: "(*sql.Tx).QueryRowContext", detail: "INSERT INTO notes ...", pos: { file: "internal/store/postgres/notes.go", startLine: 33 }, attrs: { caller: "(*example.com/webapp/internal/store/postgres.NoteRepository).Create" } } }],
+    routes: [{ route: "POST /{lang}/notes", op: "insert" }, { route: "GET /{lang}/notes", op: "select" }],
+  },
+  "api/diagrams/er?table=notes&depth=1": { mermaid: "erDiagram\n  notes {\n    int8 id PK\n  }\n", ids: { t0: "sql_table:notes" } },
   "api/node?id=func%3Aexample.com%2Fapp.F": {
     node: { id: "func:example.com/app.F", kind: "func", name: "F", package: "example.com/app", pos: { file: "app.go", startLine: 3 } },
     out: { calls: [{ edge: { id: 1, from: "func:example.com/app.F", to: "func:example.com/app.G", kind: "calls", pos: {} }, node: { id: "func:example.com/app.G", kind: "func", name: "G", pos: {} } }] },
@@ -168,6 +180,19 @@ describe("App", () => {
     expect(ref?.textContent).toBe("Authenticate");
     expect(decodeURIComponent(ref!.getAttribute("href")!)).toBe("#/code?file=internal/web/auth.go&line=32");
     expect(lines[2].textContent).toBe("3func (h *noteHandler) user() { h.auth.Authenticate(nil) }");
+  });
+
+  it("shows a table: columns, relations, routes and queries", async () => {
+    mockFetch();
+    const el = await render("#/table?name=notes");
+    const text = el.textContent ?? "";
+    expect(el.querySelector("h1")?.textContent).toContain("notes");
+    expect(text).toContain("users.id on delete cascade");
+    expect(text).toContain("Referenced by (1)");
+    expect(text).toContain("audit_events.note_id on delete set null");
+    expect(text).toContain("POST /{lang}/notes insert");
+    expect(text).toContain("(*postgres.NoteRepository).Create");
+    expect(el.querySelector(".diagram-canvas svg")).not.toBeNull();
   });
 
   it("toggles the theme", async () => {

@@ -46,3 +46,38 @@ func TestGowebGroupCreateSequence(t *testing.T) {
 		t.Error("no numbered messages")
 	}
 }
+
+// TestGowebGroupsTable checks that the groups table shows its
+// group_members relation and the routes that write to it.
+func TestGowebGroupsTable(t *testing.T) {
+	dir, _ := fixture.Goweb(t)
+	r, err := analysis.Analyze(t.Context(), dir, analysis.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	rec := httptest.NewRecorder()
+	New(r, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/table?name=groups", nil))
+	var d TableDetail
+	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
+		t.Fatal(err)
+	}
+	var refBy []string
+	for _, nb := range d.FKsIn {
+		refBy = append(refBy, nb.Node.Name)
+	}
+	if !strings.Contains(strings.Join(refBy, ","), "group_members") {
+		t.Errorf("groups referenced by %v, want group_members", refBy)
+	}
+	writes := map[string]bool{}
+	for _, tr := range d.Routes {
+		if tr.Op != "select" {
+			writes[tr.Route+" "+tr.Op] = true
+		}
+	}
+	for _, want := range []string{"POST /{lang}/groups insert", "POST /{lang}/groups/{id}/rename update"} {
+		if !writes[want] {
+			t.Errorf("groups writers %v lack %q", writes, want)
+		}
+	}
+}
