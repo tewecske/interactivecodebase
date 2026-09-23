@@ -9,6 +9,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,6 +115,22 @@ func TestScalaFixture(t *testing.T) {
 		if !found {
 			t.Errorf("no %s edge %s -> %s", e.kind, e.from, e.to)
 		}
+	}
+
+	// Calls in the operands of <&> and foreachPar run in parallel, and so
+	// does the effect of a val used as an operand.
+	overview, err := g.Neighbors(ctx, "method:(zioapp.backend.service.NoteServiceLive).overview", graph.Out, graph.EdgeCalls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var par []string
+	for _, nb := range overview {
+		if g := nb.Edge.Attrs["parallel"]; g != "" {
+			par = append(par, fmt.Sprintf("%s %s %s", nb.Node.Name, g[strings.LastIndex(g, "/")+1:], nb.Edge.Attrs["branch"]))
+		}
+	}
+	if want := []string{"NoteRepository.find NoteService.scala:54:16 2", "NoteRepository.all NoteService.scala:54:16 1", "NoteRepository.find NoteService.scala:54:39 each"}; !slices.Equal(par, want) {
+		t.Errorf("parallel calls of overview:\n%s\nwant:\n%s", strings.Join(par, "\n"), strings.Join(want, "\n"))
 	}
 
 	compareScalaRoutes(t, filepath.Join(dir, "routes.json"), all)

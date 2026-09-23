@@ -121,6 +121,13 @@ else the usual directories and Flyway's `src/main/resources/db/migration` of eac
 its per-database subdirectories, applied in version order) and links each SQL sink to the tables and columns it
 touches, as for Go.
 
+Calls made in the operands of ZIO's parallel combinators (`<&>`, `<&`, `&>`, `zipPar*`, `zipWithPar`,
+`collectAllPar`, `foreachPar`, ...) carry `parallel` (the combinator's position, shared by the calls that run
+alongside each other) and `branch` (the operand's number, or `each` for a function run once per element); an
+operand that is a local val, such as a for comprehension's `b = repo.find(id)`, marks the calls of its definition.
+Flows keep a group's calls together, the sequence diagram draws them as a `par` block with one section per
+branch, and the flow tree marks them `∥1`, `∥2`, ...
+
 A Laminar frontend (a Scala.js project, read with its own classpath) routed by Waypoint adds `page` nodes: the
 backend serves it as a single-page app, so its pages are not server routes. Each path of a Waypoint route
 (`Route.static(SignIn, root / "sign-in", basePath)`, `Route(encode, decode, pattern = root / "g" / segment[String],

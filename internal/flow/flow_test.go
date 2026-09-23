@@ -2,6 +2,7 @@ package flow
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 
@@ -136,5 +137,25 @@ func TestBuildRejectsNonRoute(t *testing.T) {
 	g := synthetic(t)
 	if _, err := Build(t.Context(), g, "func:a", Options{}); err == nil || !strings.Contains(err.Error(), "not a route") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestGroupParallel(t *testing.T) {
+	step := func(id, group, branch string) *Step {
+		s := &Step{Node: graph.Node{ID: id}}
+		if group != "" {
+			s.Edge.Attrs = map[string]string{"parallel": group, "branch": branch}
+		}
+		return s
+	}
+	got := groupParallel([]*Step{
+		step("a", "", ""), step("d", "g", "2"), step("b", "", ""), step("c", "g", "1"), step("e", "h", "each"), step("f", "g", "each"),
+	})
+	var ids []string
+	for _, s := range got {
+		ids = append(ids, s.Node.ID)
+	}
+	if want := []string{"a", "c", "d", "f", "b", "e"}; !slices.Equal(ids, want) {
+		t.Errorf("order %v, want %v", ids, want)
 	}
 }

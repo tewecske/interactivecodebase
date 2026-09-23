@@ -24,7 +24,8 @@ var sinkLanes = map[graph.NodeKind]string{
 // external system its sinks reach. Messages are numbered (autonumber) and
 // IDs maps each number to the graph node the message calls, since Mermaid
 // cannot attach clicks to messages. An interface call with several
-// implementations becomes an alt block with one branch each.
+// implementations becomes an alt block with one branch each, and calls that
+// run alongside each other (see flow.Parallel) a par block.
 func Sequence(root *flow.Step) Diagram {
 	s := &sequence{b: newBuilder("sequenceDiagram", "p"), lanes: map[string]string{}}
 	actor := starter(root.Node)
@@ -100,7 +101,21 @@ func (s *sequence) laneOf(n graph.Node) string {
 // walk emits the calls a step makes, in order.
 func (s *sequence) walk(step *flow.Step) {
 	from := s.laneOf(step.Node)
+	var group, branch string // the open par block and its branch
 	for _, c := range step.Children {
+		g, br := flow.Parallel(c)
+		switch {
+		case g != group:
+			if group != "" {
+				s.b.line("  end")
+			}
+			if g != "" {
+				s.b.line("  par %s", branchTitle(br))
+			}
+		case g != "" && br != branch:
+			s.b.line("  and %s", branchTitle(br))
+		}
+		group, branch = g, br
 		switch {
 		case c.Node.Kind == graph.KindInterfaceCall:
 			// Show dispatch as a call to the implementation, labelled with
@@ -131,6 +146,17 @@ func (s *sequence) walk(step *flow.Step) {
 			s.walk(c)
 		}
 	}
+	if group != "" {
+		s.b.line("  end")
+	}
+}
+
+// branchTitle labels a branch of a par block.
+func branchTitle(branch string) string {
+	if branch == "each" {
+		return "each element"
+	}
+	return "branch " + branch
 }
 
 func (s *sequence) message(from string, step *flow.Step, text string) {

@@ -54,7 +54,7 @@ private[scala] trait Sinks { self: Walk =>
       val attrs = f.attrs ++ Map("callee" -> f.callee, "caller" -> unprefixed(from), "resolved" -> resolved.toString)
       val name = f.callee.split('.').takeRight(2).mkString(".")
       graph.addNode(Node(id, f.kind, name, pkgName(owner), f.values.mkString("\n"), Some(at), attrs))
-      graph.addEdge(Edge(from, id, "calls", Some(at)))
+      graph.addEdge(Edge(from, id, "calls", Some(at), parallelAttrs))
     }
   }
 

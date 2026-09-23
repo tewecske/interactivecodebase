@@ -21,7 +21,12 @@ import scala.tasty.inspector.*
   *     (class-hierarchy analysis);
   *   - implements edges from a class or object to the traits it extends;
   *   - uses_type edges from a def to its receiver, parameter and result types
-  *     and from a class to its fields' types.
+  *     and from a class to its fields' types;
+  *   - calls made in the operands of ZIO's parallel combinators (`<&>`,
+  *     `zipPar`, `collectAllPar`, `foreachPar`, ...) carry the attributes
+  *     parallel (the combinator's position, shared by the calls that run
+  *     alongside each other) and branch (the operand's number from 1, or
+  *     "each" for a function run once per element).
   *
   * Only the inspected classes become nodes: calls into libraries are left
   * out, except sinks (see [[Sinks]]). Routes adds the zio-http routes (see
@@ -49,6 +54,10 @@ private final class Walk(root: Path, val graph: Graph, val guards: Map[String, S
 
   // The right-hand side of every def and val of the inspected classes.
   private[scala] val members = mutable.HashMap.empty[Symbol, Tree]
+
+  // The parallel and branch attributes of the calls being added (see
+  // [[parallelBranches]]).
+  private[scala] var parallelAttrs = Map.empty[String, String]
 
   def run(trees: List[Tree]): Unit = {
     trees.foreach(collect)
@@ -144,16 +153,39 @@ private final class Walk(root: Path, val graph: Graph, val guards: Map[String, S
     * which are nodes of their own.
     */
   private[scala] def addCalls(from: String, tree: Tree, owner: Symbol): Unit = {
+    val deferred = deferredBranches(tree)
     val traverser = new TreeTraverser {
       override def traverseTree(t: Tree)(o: Symbol): Unit = {
         if ((t eq tree) || !isHandler(t)) {
-          t match {
-            case ref: Ref => addCall(from, ref)
-            case _        =>
+          val branchVal = t match {
+            case v: ValDef if deferred.contains(v.name) => v.rhs
+            case _                                      => None
           }
-          addSink(from, t, owner)
-          addFrontend(from, t, owner)
-          super.traverseTree(t)(o)
+          val par = if (branchVal.isEmpty) parallelBranches(t) else None
+          if (branchVal.nonEmpty) {
+            // An effect defined here and run as a parallel branch.
+            val outer = parallelAttrs
+            parallelAttrs = deferred(t.asInstanceOf[ValDef].name)
+            branchVal.foreach(traverseTree(_)(o))
+            parallelAttrs = outer
+          } else if (par.nonEmpty) {
+            val (at, branches, rest) = par.get
+            val outer = parallelAttrs
+            for ((b, label) <- branches) {
+              parallelAttrs = Map("parallel" -> at, "branch" -> label)
+              traverseTree(b)(o)
+            }
+            parallelAttrs = outer
+            rest.foreach(traverseTree(_)(o))
+          } else {
+            t match {
+              case ref: Ref => addCall(from, ref)
+              case _        =>
+            }
+            addSink(from, t, owner)
+            addFrontend(from, t, owner)
+            super.traverseTree(t)(o)
+          }
         }
       }
     }
@@ -173,11 +205,90 @@ private final class Walk(root: Path, val graph: Graph, val guards: Map[String, S
           Node(id, "interface_call", s"${typeName(owner)}.${sym.name}", pkgName(sym), signature(sym), sym.pos.flatMap(pos(_, withEnd = false)))
         )
       }
-      graph.addEdge(Edge(from, id, "calls", at))
+      graph.addEdge(Edge(from, id, "calls", at, parallelAttrs))
     } else if ((sym.isDefDef && isMemberDef(sym)) || (sym.isValDef && isMemberVal(sym))) {
       // The target is a node once its class is walked; edges to nodes that
       // never appear are dropped on output.
-      graph.addEdge(Edge(from, funcID(sym), "calls", at))
+      graph.addEdge(Edge(from, funcID(sym), "calls", at, parallelAttrs))
+    }
+  }
+
+  // ZIO's combinators that run their operands alongside each other: binary
+  // ones, whose chains (a <&> b <&> c) form one group, and those taking a
+  // collection of effects or a function run once per element.
+  private val zipParOps = Set("<&>", "<&", "&>", "zipPar", "zipParLeft", "zipParRight", "zipWithPar")
+  private val collectParOps = Set("collectAllPar", "collectAllParDiscard", "mergeAllPar", "reduceAllPar", "validatePar")
+  private val foreachParOps = Set("foreachPar", "foreachParDiscard", "validateParDiscard")
+
+  /** The attributes of the local vals in tree whose effects run as a
+    * parallel branch (`val b = ...; a <&> b`), by name: a for comprehension's
+    * `b = ...` reaches the branch as a pattern variable of the same name, not
+    * as the val.
+    */
+  private def deferredBranches(tree: Tree): Map[String, Map[String, String]] = {
+    val found = mutable.HashMap.empty[String, Map[String, String]]
+    new TreeTraverser {
+      override def traverseTree(t: Tree)(o: Symbol): Unit = {
+        for ((at, branches, _) <- parallelBranches(t); (b, label) <- branches) {
+          b match {
+            case id: Ident if !id.symbol.isNoSymbol && !own.contains(id.symbol.maybeOwner) =>
+              found(id.name) = Map("parallel" -> at, "branch" -> label)
+            case _ =>
+          }
+        }
+        super.traverseTree(t)(o)
+      }
+    }.traverseTree(tree)(Symbol.noSymbol)
+    found.toMap
+  }
+
+  /** The branches of a parallel combinator call t, labelled "1", "2", ... or
+    * "each", its position as "file:line:col", and the rest of its trees
+    * (implicit arguments), which run outside the branches.
+    */
+  private def parallelBranches(t: Tree): Option[(String, List[(Tree, String)], List[Tree])] = {
+    def isZio(sym: Symbol) = !sym.isNoSymbol && sym.maybeOwner.fullName.startsWith("zio.")
+    // A call's method, its qualifier and argument lists, innermost first.
+    def parts(t: Tree): Option[(Symbol, Tree, List[List[Tree]])] = t match {
+      case Apply(fun, args) => parts(fun).map((s, qual, argss) => (s, qual, argss :+ args))
+      case TypeApply(fun, _) => parts(fun)
+      case Select(qual, _)  => Some((t.symbol, qual, Nil))
+      case Inlined(_, Nil, e) => parts(e)
+      case _                => None
+    }
+    def unwrap(t: Tree): Tree = t match {
+      case Inlined(_, Nil, e) => unwrap(e)
+      case Typed(e, _)        => unwrap(e)
+      case _                  => t
+    }
+    // The operands of a chain of binary parallel combinators.
+    def operands(t: Tree): Option[(List[Tree], List[Tree])] = parts(unwrap(t)) match {
+      case Some((sym, qual, (that :: Nil) :: implicits)) if zipParOps(sym.name) && isZio(sym) =>
+        val (left, rest) = operands(qual).getOrElse((List(qual), Nil))
+        Some((left :+ that, rest ++ implicits.flatten))
+      case _ => None
+    }
+    def elements(arg: Tree): Option[List[Tree]] = unwrap(arg) match {
+      case Repeated(elems, _)         => Some(elems)
+      case Apply(_, List(r))          => elements(r)
+      case _                          => None
+    }
+    lazy val at = pos(t.pos, withEnd = false).map(p => s"${p.file}:${p.startLine}:${p.startCol}")
+    operands(t) match {
+      case Some((ops, rest)) =>
+        at.map(a => (a, ops.zipWithIndex.map((b, i) => (b, (i + 1).toString)), rest))
+      case None =>
+        parts(unwrap(t)) match {
+          case Some((sym, qual, (first :: argss))) if isZio(sym) && collectParOps(sym.name) && first.size == 1 =>
+            val branches = elements(first.head) match {
+              case Some(es) if es.size > 1 => es.zipWithIndex.map((b, i) => (b, (i + 1).toString))
+              case _                      => List((first.head, "each"))
+            }
+            at.map(a => (a, branches, qual :: argss.flatten))
+          case Some((sym, qual, (first :: fs :: argss))) if isZio(sym) && foreachParOps(sym.name) && fs.size == 1 =>
+            at.map(a => (a, List((fs.head, "each")), qual :: first ++ argss.flatten))
+          case _ => None
+        }
     }
   }
 

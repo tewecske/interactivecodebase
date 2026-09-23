@@ -63,6 +63,9 @@ func label(s *Step) string {
 	if s.Calls > 1 {
 		fmt.Fprintf(&b, " ×%d", s.Calls)
 	}
+	if _, branch := Parallel(s); branch != "" {
+		fmt.Fprintf(&b, " ∥%s", branch)
+	}
 	if p := n.Pos; p.File != "" && n.Kind != graph.KindSQLTable {
 		fmt.Fprintf(&b, "  %s:%d", p.File, p.StartLine)
 	}
