@@ -1,8 +1,10 @@
 package analysis
 
 import (
+	"cmp"
 	"go/constant"
 	"go/token"
+	"maps"
 	"slices"
 
 	"golang.org/x/tools/go/ssa"
@@ -59,7 +61,10 @@ func buildNavigation(r *Result, own []*ssa.Function) {
 		if rt.Handler == nil {
 			continue
 		}
-		for fn := range reachableFuncs(w, rt.Handler, rt.Method) {
+		// Sorted: map order would make edge order differ between runs.
+		funcs := slices.Collect(maps.Keys(reachableFuncs(w, rt.Handler, rt.Method)))
+		slices.SortFunc(funcs, func(a, b *ssa.Function) int { return cmp.Compare(a.String(), b.String()) })
+		for _, fn := range funcs {
 			for _, b := range w.reachable(fn, rt.Method) {
 				for _, instr := range b.Instrs {
 					call, ok := instr.(*ssa.Call)

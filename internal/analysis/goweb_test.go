@@ -3,6 +3,7 @@
 package analysis
 
 import (
+	"bytes"
 	"slices"
 	"strings"
 	"testing"
@@ -86,6 +87,20 @@ func TestGowebCallGraph(t *testing.T) {
 			{"GET /{lang}/admin", "GET /{lang}/admin/audit", "link"},
 			{"GET /{lang}/account/settings", "GET /{lang}/sign-in", "redirect"},
 		})
+	})
+
+	t.Run("deterministic", func(t *testing.T) {
+		again := analyzeT(t, dir, Options{})
+		var a, b bytes.Buffer
+		if err := r.Graph.Export(ctx, &a); err != nil {
+			t.Fatal(err)
+		}
+		if err := again.Graph.Export(ctx, &b); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(a.Bytes(), b.Bytes()) {
+			t.Error("two analyses of goweb produced different graphs")
+		}
 	})
 
 	t.Run("handlers have nodes", func(t *testing.T) {

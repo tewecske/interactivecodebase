@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"cmp"
 	"go/constant"
 	"go/token"
 	"go/types"
@@ -477,7 +478,13 @@ func (c *authClassifier) siteCallees(call ssa.CallInstruction) []*ssa.Function {
 			out = append(out, origin(e.Callee.Func))
 		}
 	}
-	return out
+	return sortFuncs(out)
+}
+
+// sortFuncs orders functions by name: call-graph edges come in map order.
+func sortFuncs(fns []*ssa.Function) []*ssa.Function {
+	slices.SortFunc(fns, func(a, b *ssa.Function) int { return cmp.Compare(a.String(), b.String()) })
+	return fns
 }
 
 // moduleCallees returns the module functions an external function calls.
@@ -500,7 +507,7 @@ func (c *authClassifier) callees(fn *ssa.Function) []*ssa.Function {
 	for _, e := range node.Out {
 		out = append(out, origin(e.Callee.Func))
 	}
-	return out
+	return sortFuncs(out)
 }
 
 // reachesSink returns the functions that can reach a sink call.
