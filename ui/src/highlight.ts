@@ -19,6 +19,7 @@ function load(): Promise<HighlighterCore> {
         import("@shikijs/langs/sql"),
         import("@shikijs/langs/css"),
         import("@shikijs/langs/javascript"),
+        import("@shikijs/langs/scala"),
       ],
       engine: createJavaScriptRegexEngine(),
     });
@@ -28,7 +29,7 @@ function load(): Promise<HighlighterCore> {
 
 export function langFor(file: string): string {
   const ext = file.slice(file.lastIndexOf(".") + 1).toLowerCase();
-  return { go: "go", html: "html", tmpl: "html", gohtml: "html", sql: "sql", css: "css", js: "javascript", mjs: "javascript" }[ext] ?? "text";
+  return { go: "go", html: "html", tmpl: "html", gohtml: "html", sql: "sql", css: "css", js: "javascript", mjs: "javascript", scala: "scala", sc: "scala", sbt: "scala" }[ext] ?? "text";
 }
 
 // tokenize returns the colored tokens of each line.
