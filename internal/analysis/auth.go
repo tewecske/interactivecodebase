@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"cmp"
+	"fmt"
 	"go/constant"
 	"go/token"
 	"go/types"
@@ -38,9 +39,30 @@ var (
 	authNameRE = regexp.MustCompile(`(?i)authenticat`)
 	// denialNameRE matches calls that answer a rejected request.
 	denialNameRE = regexp.MustCompile(`(?i)redirect|error|deny|denied|forbid|unauthori|sign.?in|login|reject|abort|notfound|alert`)
-	adminFieldRE = regexp.MustCompile(`(?i)admin`)
-	guestFieldRE = regexp.MustCompile(`(?i)guest`)
 )
+
+// roleFields matches the names of fields that guard a role.
+type roleFields struct{ admin, guest *regexp.Regexp }
+
+// newRoleFields compiles configured role field patterns over the defaults.
+func newRoleFields(cfg map[string]string) (roleFields, error) {
+	rf := roleFields{admin: regexp.MustCompile(`(?i)admin`), guest: regexp.MustCompile(`(?i)guest`)}
+	for role, expr := range cfg {
+		re, err := regexp.Compile(expr)
+		if err != nil {
+			return rf, fmt.Errorf("analysis: role field pattern for %s: %w", role, err)
+		}
+		switch role {
+		case AccessAdmin:
+			rf.admin = re
+		case AccessGuest:
+			rf.guest = re
+		default:
+			return rf, fmt.Errorf("analysis: role fields: unknown role %q (want admin or guest)", role)
+		}
+	}
+	return rf, nil
+}
 
 // authClassifier decides the access level of routes.
 type authClassifier struct {
@@ -49,22 +71,27 @@ type authClassifier struct {
 	// guards maps guard functions to the role they enforce on success.
 	guards map[*ssa.Function]string
 	// work are module functions that can reach a sink.
-	work map[*ssa.Function]bool
+	work  map[*ssa.Function]bool
+	roles roleFields
 }
 
-func newAuthClassifier(r *Result, own []*ssa.Function, scopes map[*ssa.Function]*methodScope, extra []string) *authClassifier {
-	c := &authClassifier{r: r, scopes: scopes, guards: map[*ssa.Function]string{}}
-	c.findGuards(own, extra)
+func newAuthClassifier(r *Result, own []*ssa.Function, scopes map[*ssa.Function]*methodScope, extra []string,
+	extraRoles map[string]string, roles roleFields,
+) *authClassifier {
+	c := &authClassifier{r: r, scopes: scopes, guards: map[*ssa.Function]string{}, roles: roles}
+	c.findGuards(own, extra, extraRoles)
 	c.work = reachesSink(r)
 	return c
 }
 
 // findGuards seeds guards with authentication primitives, then adds every
 // request-taking function returning bool or error that calls a guard.
-func (c *authClassifier) findGuards(own []*ssa.Function, extra []string) {
+func (c *authClassifier) findGuards(own []*ssa.Function, extra []string, extraRoles map[string]string) {
 	for _, fn := range own {
-		if (authNameRE.MatchString(fn.Name()) && requestParam(fn) >= 0) || slices.Contains(extra, fn.String()) {
-			c.guards[fn] = roleOf(fn, AccessAuthenticated)
+		if role, ok := extraRoles[fn.String()]; ok {
+			c.guards[fn] = c.roleOf(fn, role)
+		} else if (authNameRE.MatchString(fn.Name()) && requestParam(fn) >= 0) || slices.Contains(extra, fn.String()) {
+			c.guards[fn] = c.roleOf(fn, AccessAuthenticated)
 		}
 	}
 	for changed := true; changed; {
@@ -80,7 +107,7 @@ func (c *authClassifier) findGuards(own []*ssa.Function, extra []string) {
 				}
 			}
 			if role != "" {
-				c.guards[fn] = roleOf(fn, role)
+				c.guards[fn] = c.roleOf(fn, role)
 				changed = true
 			}
 		}
@@ -88,10 +115,10 @@ func (c *authClassifier) findGuards(own []*ssa.Function, extra []string) {
 }
 
 // roleOf raises role when fn branches on an admin or guest field.
-func roleOf(fn *ssa.Function, role string) string {
+func (c *authClassifier) roleOf(fn *ssa.Function, role string) string {
 	for _, b := range fn.Blocks {
 		if ifInstr, ok := b.Instrs[len(b.Instrs)-1].(*ssa.If); ok {
-			if r := fieldRole(ifInstr.Cond); accessRank[r] > accessRank[role] {
+			if r := c.fieldRole(ifInstr.Cond); accessRank[r] > accessRank[role] {
 				role = r
 			}
 		}
@@ -101,7 +128,7 @@ func roleOf(fn *ssa.Function, role string) string {
 
 // fieldRole reports the role a condition checks: a load of a field whose
 // name mentions admin or guest.
-func fieldRole(v ssa.Value) string {
+func (c *authClassifier) fieldRole(v ssa.Value) string {
 	role := ""
 	var visit func(v ssa.Value, depth int)
 	visit = func(v ssa.Value, depth int) {
@@ -111,11 +138,11 @@ func fieldRole(v ssa.Value) string {
 		switch v := v.(type) {
 		case *ssa.UnOp:
 			if fa, ok := v.X.(*ssa.FieldAddr); ok {
-				role = maxRole(role, fieldNameRole(fa.X.Type(), fa.Field))
+				role = maxRole(role, c.fieldNameRole(fa.X.Type(), fa.Field))
 			}
 			visit(v.X, depth+1)
 		case *ssa.Field:
-			role = maxRole(role, fieldNameRole(v.X.Type(), v.Field))
+			role = maxRole(role, c.fieldNameRole(v.X.Type(), v.Field))
 		case *ssa.BinOp:
 			visit(v.X, depth+1)
 			visit(v.Y, depth+1)
@@ -132,7 +159,7 @@ func maxRole(a, b string) string {
 	return a
 }
 
-func fieldNameRole(t types.Type, field int) string {
+func (c *authClassifier) fieldNameRole(t types.Type, field int) string {
 	if p, ok := t.Underlying().(*types.Pointer); ok {
 		t = p.Elem()
 	}
@@ -141,9 +168,9 @@ func fieldNameRole(t types.Type, field int) string {
 		return ""
 	}
 	switch name := st.Field(field).Name(); {
-	case adminFieldRE.MatchString(name):
+	case c.roles.admin.MatchString(name):
 		return AccessAdmin
-	case guestFieldRE.MatchString(name):
+	case c.roles.guest.MatchString(name):
 		return AccessGuest
 	}
 	return ""
@@ -252,7 +279,7 @@ func (c *authClassifier) guardEnforced(blocks []*ssa.BasicBlock, call *ssa.Call,
 		// err != nil || !u.IsAdmin.
 		for _, other := range blocks {
 			if oi, ok := other.Instrs[len(other.Instrs)-1].(*ssa.If); ok && slices.Contains(other.Succs, denyBlock) {
-				role = maxRole(role, fieldRole(oi.Cond))
+				role = maxRole(role, c.fieldRole(oi.Cond))
 			}
 		}
 		return role, true

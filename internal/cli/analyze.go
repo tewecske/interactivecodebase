@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"maps"
 	"slices"
@@ -12,16 +13,22 @@ import (
 	"time"
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
+	"github.com/tewecske/interactivecodebase/internal/config"
 	"github.com/tewecske/interactivecodebase/internal/graph"
 )
 
 func runAnalyze(ctx context.Context, e *env, args []string) (err error) {
 	fs := newFlagSet(e, "analyze", "icb analyze [flags] <dir>")
 	asJSON := fs.Bool("json", false, "print the summary as JSON")
+	cfgPath := configFlag(fs)
 	if err := parse(fs, args, 1); err != nil {
 		return err
 	}
-	r, release, err := openAnalysis(ctx, fs.Arg(0))
+	opts, err := loadOptions(fs.Arg(0), *cfgPath)
+	if err != nil {
+		return err
+	}
+	r, release, err := openAnalysis(ctx, fs.Arg(0), opts)
 	if err != nil {
 		return err
 	}
@@ -44,13 +51,27 @@ func runAnalyze(ctx context.Context, e *env, args []string) (err error) {
 	return nil
 }
 
+// configFlag adds -config to a command's flags.
+func configFlag(fs *flag.FlagSet) *string {
+	return fs.String("config", "", "config file (default: "+config.FileName+" in <dir>, if present)")
+}
+
+// loadOptions reads the analysis options from the config for dir.
+func loadOptions(dir, path string) (analysis.Options, error) {
+	c, _, err := config.Load(dir, path)
+	if err != nil {
+		return analysis.Options{}, err
+	}
+	return c.Options(), nil
+}
+
 // openAnalysis analyzes dir; the caller must call release when done. Tests
 // replace it to share one analysis across commands.
-var openAnalysis = func(ctx context.Context, dir string) (r *analysis.Result, release func() error, err error) {
+var openAnalysis = func(ctx context.Context, dir string, opts analysis.Options) (r *analysis.Result, release func() error, err error) {
 	if err := checkDir(dir); err != nil {
 		return nil, nil, err
 	}
-	r, err = analysis.Analyze(ctx, dir, analysis.Options{})
+	r, err = analysis.Analyze(ctx, dir, opts)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -18,10 +18,11 @@ var mcpTransport = func() mcp.Transport { return &mcp.StdioTransport{} }
 
 func runMCP(ctx context.Context, e *env, args []string) (err error) {
 	fs := newFlagSet(e, "mcp", "icb mcp [flags] <dir>")
+	cfgPath := configFlag(fs)
 	if err := parse(fs, args, 1); err != nil {
 		return err
 	}
-	cur, err := openLive(ctx, fs.Arg(0))
+	cur, err := openLive(ctx, fs.Arg(0), *cfgPath)
 	if err != nil {
 		return err
 	}
@@ -44,13 +45,22 @@ func goplsFor(cur *live.Current) *lsp.Client {
 	return lsp.New(dir)
 }
 
-// openLive analyzes dir and returns a holder that can re-analyze it.
-func openLive(ctx context.Context, dir string) (*live.Current, error) {
-	r, release, err := openAnalysis(ctx, dir)
+// openLive analyzes dir and returns a holder that can re-analyze it,
+// reading the config again each time.
+func openLive(ctx context.Context, dir, cfgPath string) (*live.Current, error) {
+	opts, err := loadOptions(dir, cfgPath)
+	if err != nil {
+		return nil, err
+	}
+	r, release, err := openAnalysis(ctx, dir, opts)
 	if err != nil {
 		return nil, err
 	}
 	return live.New(r, release, func(ctx context.Context) (*analysis.Result, error) {
-		return analysis.Analyze(ctx, dir, analysis.Options{})
+		opts, err := loadOptions(dir, cfgPath)
+		if err != nil {
+			return nil, err
+		}
+		return analysis.Analyze(ctx, dir, opts)
 	}), nil
 }

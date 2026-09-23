@@ -48,6 +48,20 @@ type Options struct {
 	// MigrationDirs are searched for SQL migrations, relative to the module
 	// root. Nil means sqlparse.DefaultMigrationDirs.
 	MigrationDirs []string
+	// Patterns are the package patterns to load; nil means "./...".
+	Patterns []string
+	// AuthRoles maps guard functions (go/ssa names) to the access level
+	// they grant, for guards other than the default "authenticated".
+	AuthRoles map[string]string
+	// RoleFields maps admin and guest to regular expressions matching the
+	// names of fields a guard branches on to require that role. Missing
+	// entries keep the defaults ("admin", "guest").
+	RoleFields map[string]string
+	// Values gives the possible values of what the analysis cannot resolve
+	// statically, by go/ssa name of a package variable or function (its
+	// result), or "env:NAME" for os.Getenv("NAME"). Route prefixes read
+	// from configuration are the typical use.
+	Values map[string][]string
 }
 
 // Result is an analyzed module.
@@ -79,6 +93,7 @@ type Result struct {
 	scopes    map[*ssa.Function]*methodScope
 	funcOnce  sync.Once
 	funcIndex map[string]*ssa.Function
+	values    map[string][]string
 }
 
 // Stats describes an analysis run.
@@ -108,11 +123,20 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &Result{}
+	roles, err := newRoleFields(opts.RoleFields)
+	if err != nil {
+		return nil, err
+	}
+	for fn, role := range opts.AuthRoles {
+		if _, ok := accessRank[role]; !ok || role == AccessPublic {
+			return nil, fmt.Errorf("analysis: guard %s: unknown role %q (want authenticated, admin or guest)", fn, role)
+		}
+	}
+	r := &Result{values: opts.Values}
 	sqlparse.Warm() // compile the SQL parser while packages load
 
 	start := time.Now()
-	pkgs, err := load(ctx, abs, opts.Tests)
+	pkgs, err := load(ctx, abs, opts.Tests, opts.Patterns)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +172,7 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	r.Sinks = detectSinks(r, own, append(slices.Clone(DefaultSinks), opts.ExtraSinks...))
 	analyzeQueries(r.Sinks, sqlparse.Postgres)
 	r.scopes = methodScopes(own)
-	newAuthClassifier(r, own, r.scopes, opts.AuthFuncs).classify(r.Routes)
+	newAuthClassifier(r, own, r.scopes, opts.AuthFuncs, opts.AuthRoles, roles).classify(r.Routes)
 	buildPages(r, own)
 	buildNavigation(r, own)
 	if r.Schema, r.MigrationDirs, err = sqlparse.LoadMigrations(r.Dir, opts.MigrationDirs); err != nil {
@@ -163,14 +187,17 @@ func Analyze(ctx context.Context, dir string, opts Options) (*Result, error) {
 	return r, nil
 }
 
-func load(ctx context.Context, dir string, tests bool) ([]*packages.Package, error) {
+func load(ctx context.Context, dir string, tests bool, patterns []string) ([]*packages.Package, error) {
+	if len(patterns) == 0 {
+		patterns = []string{"./..."}
+	}
 	cfg := &packages.Config{
 		Context: ctx,
 		Mode:    packages.LoadAllSyntax | packages.NeedModule,
 		Dir:     dir,
 		Tests:   tests,
 	}
-	pkgs, err := packages.Load(cfg, "./...")
+	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("analysis: load %s: %w", dir, err)
 	}

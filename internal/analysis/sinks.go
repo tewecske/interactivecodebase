@@ -24,6 +24,9 @@ type SinkRule struct {
 	// Rebind marks SQL written with :name or ? placeholders (sqlx named
 	// queries, gorm), rewritten as $n before parsing.
 	Rebind bool
+	// Label names what the sink reaches, e.g. "Stripe API" for a module's
+	// own client wrapper.
+	Label string
 }
 
 // DefaultSinks are the built-in sink rules.
@@ -91,6 +94,8 @@ type Sink struct {
 	Query *sqlparse.Query
 	// Rebind marks SQL with :name or ? placeholders.
 	Rebind bool
+	// Label is the rule's label.
+	Label string
 }
 
 // analyzeQueries parses the SQL of every SQL sink.
@@ -155,7 +160,7 @@ func detectSinks(r *Result, own []*ssa.Function, rules []SinkRule) []Sink {
 	for _, rule := range rules {
 		byFunc[rule.Func] = rule
 	}
-	ev := newEvaluator(r.CallGraph, r.Module)
+	ev := r.evaluator()
 	var sinks []Sink
 	for _, fn := range own {
 		seen := map[ssa.CallInstruction]bool{}
@@ -181,6 +186,7 @@ func detectSinks(r *Result, own []*ssa.Function, rules []SinkRule) []Sink {
 					Pos:    e.Site.Pos(),
 					Instr:  e.Site,
 					Rebind: rule.Rebind,
+					Label:  rule.Label,
 				})
 			}
 		}
@@ -189,6 +195,17 @@ func detectSinks(r *Result, own []*ssa.Function, rules []SinkRule) []Sink {
 				call, ok := instr.(ssa.CallInstruction)
 				if !ok || seen[call] {
 					continue
+				}
+				// A rule naming an interface method, e.g. a configured
+				// mail sender whose implementation is not in the program.
+				if common := call.Common(); common.IsInvoke() {
+					if rule, ok := byFunc[common.Method.FullName()]; ok {
+						sinks = append(sinks, Sink{
+							Kind: rule.Kind, Caller: fn, Callee: rule.Func, Values: sinkValues(ev, common, rule),
+							Pos: call.Pos(), Instr: call, Rebind: rule.Rebind, Label: rule.Label,
+						})
+						continue
+					}
 				}
 				if s, ok := sqlcSink(fn, call); ok {
 					sinks = append(sinks, s)
@@ -279,7 +296,7 @@ func funcValueSinks(fn *ssa.Function, byFunc map[string]SinkRule) []Sink {
 				if pos == token.NoPos {
 					pos = fn.Pos()
 				}
-				out = append(out, Sink{Kind: rule.Kind, Caller: fn, Callee: rule.Func, FuncValue: true, Pos: pos, Instr: instr})
+				out = append(out, Sink{Kind: rule.Kind, Caller: fn, Callee: rule.Func, FuncValue: true, Pos: pos, Instr: instr, Label: rule.Label})
 			}
 		}
 	}

@@ -51,6 +51,16 @@ go install github.com/tewecske/interactivecodebase/cmd/icb@latest
 
 The web UI is built with Node 22+ by `make ui` (part of `make build`) and embedded into the binary.
 
+## Configuration
+
+An `icb.yaml` in the analyzed directory (or a file given with `-config`) tunes the analysis: which packages to
+load, extra noise to leave out of flows, custom sinks (say, your own client for a third-party API, or an interface
+whose implementation is wired in at deployment), authentication guards and role fields, migration directories, and
+values for what cannot be resolved statically (route prefixes or names from configuration, `env:NAME`). Unknown
+keys are errors. Editors that speak the YAML language server complete and check it with
+[docs/icb.schema.json](docs/icb.schema.json); [examples/goweb/icb.yaml](examples/goweb/icb.yaml) is a worked
+example. With `serve -watch`, editing `icb.yaml` re-analyzes too.
+
 ## JSON API
 
 `icb serve` analyzes the module once (with `-watch`, again whenever `.go`, template or `.sql` files, `go.mod`

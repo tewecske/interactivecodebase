@@ -102,6 +102,7 @@ func TestSubcommandArgumentValidation(t *testing.T) {
 		{"analyze unknown flag", []string{"analyze", "-nope", dir}, ExitUsage, "flag provided but not defined"},
 		{"analyze nonexistent dir", []string{"analyze", dir + "/missing"}, ExitError, "no such file or directory"},
 		{"mcp not a module", []string{"mcp", dir}, ExitError, "is not inside a Go module"},
+		{"analyze missing config", []string{"analyze", "-config", dir + "/nope.yaml", dir}, ExitError, "config: open"},
 		{"query missing command", []string{"query", dir}, ExitUsage, "expected at least 2 argument(s), got 1"},
 		{"query unknown command", []string{"query", dir, "bogus"}, ExitUsage, `unknown query command "bogus"`},
 		{"query wrong arity", []string{"query", dir, "paths", "a"}, ExitUsage, "wrong number of arguments for paths"},
@@ -129,9 +130,9 @@ var sharedWebapp = sync.OnceValues(func() (*analysis.Result, error) {
 
 func TestMain(m *testing.M) {
 	analyze := openAnalysis
-	openAnalysis = func(ctx context.Context, dir string) (*analysis.Result, func() error, error) {
+	openAnalysis = func(ctx context.Context, dir string, opts analysis.Options) (*analysis.Result, func() error, error) {
 		if dir != fixture.WebappDir() {
-			return analyze(ctx, dir)
+			return analyze(ctx, dir, opts)
 		}
 		r, err := sharedWebapp()
 		return r, func() error { return nil }, err

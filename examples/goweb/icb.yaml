@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../docs/icb.schema.json
+#
+# icb configuration for goweb (github.com/tewecske/goweb). Copy it to the
+# goweb checkout as icb.yaml, or pass it with -config.
+
+# Only the application: leave out the Playwright/Postgres test helpers.
+packages:
+  - ./cmd/...
+  - ./internal/...
+
+# Call targets that add noise to flows, on top of the defaults.
+exclude:
+  - log/slog
+  - github.com/tewecske/goweb/internal/locale
+
+# The OAuth providers come from configuration at run time; name the ones
+# deployed so their routes get concrete paths instead of /oauth/{?}.
+values:
+  "(github.com/tewecske/goweb/internal/adapter/http.OAuthProviderLister).Names":
+    - github
+    - google
+
+# Calls that leave the program behind goweb's own interfaces, whose real
+# implementations are wired in at deployment.
+sinks:
+  - kind: http
+    func: (github.com/tewecske/goweb/internal/service.OAuthProviderClient).Exchange
+    label: OAuth provider (token exchange)
+  - kind: smtp
+    func: (github.com/tewecske/goweb/internal/service.MailSender).Send
+    label: Mail delivery
+
+auth:
+  # goweb's user flags are IsAdmin and IsGuest.
+  roleFields:
+    admin: (?i)^is_?admin$
+    guest: (?i)^is_?guest$
+
+migrations:
+  - migrations
+
+dialect: postgres

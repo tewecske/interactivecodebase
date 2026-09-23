@@ -30,7 +30,7 @@ type Navigation struct {
 // from redirects reachable from each route's handler.
 func buildNavigation(r *Result, own []*ssa.Function) {
 	w := &authClassifier{r: r, scopes: r.scopes}
-	ev := newEvaluator(r.CallGraph, r.Module)
+	ev := r.evaluator()
 	redirectors := redirectingFuncs(own)
 	seen := map[[3]string]bool{}
 	add := func(n Navigation) {

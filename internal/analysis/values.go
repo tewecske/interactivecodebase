@@ -32,10 +32,21 @@ type evaluator struct {
 	cg      *callgraph.Graph
 	module  string
 	visited map[ssa.Value]bool
+	// values are configured values by variable, function or env name
+	// (Options.Values).
+	values map[string][]string
 }
 
 func newEvaluator(cg *callgraph.Graph, module string) *evaluator {
 	return &evaluator{cg: cg, module: module, visited: map[ssa.Value]bool{}}
+}
+
+// evaluator returns an evaluator over the result's call graph and
+// configured values.
+func (r *Result) evaluator() *evaluator {
+	e := newEvaluator(r.CallGraph, r.Module)
+	e.values = r.values
+	return e
 }
 
 func (e *evaluator) own(fn *ssa.Function) bool {
@@ -104,6 +115,9 @@ func (e *evaluator) str(v ssa.Value, depth int) []string {
 			}
 		}
 	case *ssa.Call:
+		if vals, ok := e.values[callName(v.Common())]; ok {
+			return vals
+		}
 		fn := v.Common().StaticCallee()
 		if fn == nil {
 			break
@@ -166,7 +180,22 @@ func (e *evaluator) load(addr ssa.Value, depth int) []string {
 				return limit(out)
 			}
 		}
+	case *ssa.Alloc:
+		// A local variable in a heap cell, e.g. one captured by a
+		// closure: the values stored into it.
+		var out []string
+		for _, ref := range *a.Referrers() {
+			if st, ok := ref.(*ssa.Store); ok && st.Addr == a {
+				out = union(out, e.str(st.Val, depth+1))
+			}
+		}
+		if len(out) > 0 {
+			return limit(out)
+		}
 	case *ssa.Global:
+		if vals, ok := e.values[a.String()]; ok {
+			return vals
+		}
 		if vals := globalStores(a); len(vals) > 0 {
 			var out []string
 			for _, val := range vals {
@@ -190,6 +219,14 @@ func (e *evaluator) slice(v ssa.Value, depth int) ([][]string, bool) {
 			return e.allocElems(alloc, depth+1)
 		}
 	case *ssa.Call:
+		// A configured list, e.g. provider names from configuration.
+		if vals, ok := e.values[callName(v.Common())]; ok {
+			elems := make([][]string, len(vals))
+			for i, val := range vals {
+				elems[i] = []string{val}
+			}
+			return elems, true
+		}
 		fn := v.Common().StaticCallee()
 		if fn == nil || !e.own(fn) {
 			return nil, false
@@ -374,6 +411,15 @@ var verbRE = regexp.MustCompile(`%[-+# 0]*[0-9*]*(\.[0-9*]+)?[a-zA-Z%]`)
 // model evaluates calls to well-known string builders; nil if fn is not one.
 func (e *evaluator) model(fn string, args []ssa.Value, depth int) []string {
 	switch fn {
+	case "os.Getenv":
+		if len(args) == 1 && e.values != nil {
+			for _, name := range e.str(args[0], depth) {
+				if vals, ok := e.values["env:"+name]; ok {
+					return vals
+				}
+			}
+		}
+		return nil
 	case "path.Join", "path/filepath.Join":
 		if len(args) != 1 {
 			return nil
@@ -419,6 +465,18 @@ func (e *evaluator) model(fn string, args []ssa.Value, depth int) []string {
 		return limit(out)
 	}
 	return nil
+}
+
+// callName is the go/ssa name of a call's static callee, or of the
+// interface method it invokes.
+func callName(c *ssa.CallCommon) string {
+	if c.IsInvoke() {
+		return c.Method.FullName()
+	}
+	if fn := c.StaticCallee(); fn != nil {
+		return fn.String()
+	}
+	return ""
 }
 
 // returns lists the first result of every return statement in fn.
