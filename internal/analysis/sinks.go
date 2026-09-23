@@ -21,6 +21,9 @@ type SinkRule struct {
 	Kind graph.NodeKind
 	Func string // go/ssa name, e.g. "(*database/sql.DB).QueryContext"
 	Arg  int
+	// Rebind marks SQL written with :name or ? placeholders (sqlx named
+	// queries, gorm), rewritten as $n before parsing.
+	Rebind bool
 }
 
 // DefaultSinks are the built-in sink rules.
@@ -45,6 +48,8 @@ func defaultSinks() []SinkRule {
 	} {
 		add(graph.KindSinkSQL, 1, recv+".Query", recv+".QueryRow", recv+".Exec")
 	}
+
+	rules = append(rules, dataAccessSinks()...)
 
 	add(graph.KindSinkFile, 0, "os.Open", "os.OpenFile", "os.Create", "os.ReadFile", "os.WriteFile", "os.ReadDir",
 		"os.Remove", "os.RemoveAll", "os.Mkdir", "os.MkdirAll", "os.Rename", "os.CreateTemp", "os.MkdirTemp",
@@ -82,14 +87,17 @@ type Sink struct {
 	// Instr is the call or the instruction using the function value.
 	Instr ssa.Instruction
 	// Query is what an SQL sink's text does, merged over all its Values.
+	// Sinks without SQL text (gorm model calls) have it set directly.
 	Query *sqlparse.Query
+	// Rebind marks SQL with :name or ? placeholders.
+	Rebind bool
 }
 
 // analyzeQueries parses the SQL of every SQL sink.
 func analyzeQueries(sinks []Sink, d sqlparse.Dialect) {
 	for i := range sinks {
 		s := &sinks[i]
-		if s.Kind != graph.KindSinkSQL || len(s.Values) == 0 {
+		if s.Kind != graph.KindSinkSQL || len(s.Values) == 0 || s.Query != nil {
 			continue
 		}
 		merged := &sqlparse.Query{}
@@ -97,6 +105,9 @@ func analyzeQueries(sinks []Sink, d sqlparse.Dialect) {
 			if strings.TrimSpace(v) == Unknown {
 				merged.Partial = true
 				continue
+			}
+			if s.Rebind {
+				v = positional(v)
 			}
 			q := d.Query(v)
 			merged.Partial = merged.Partial || q.Partial
@@ -169,7 +180,23 @@ func detectSinks(r *Result, own []*ssa.Function, rules []SinkRule) []Sink {
 					Values: sinkValues(ev, e.Site.Common(), rule),
 					Pos:    e.Site.Pos(),
 					Instr:  e.Site,
+					Rebind: rule.Rebind,
 				})
+			}
+		}
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				call, ok := instr.(ssa.CallInstruction)
+				if !ok || seen[call] {
+					continue
+				}
+				if s, ok := sqlcSink(fn, call); ok {
+					sinks = append(sinks, s)
+				} else if c, ok := call.(*ssa.Call); ok {
+					if s, ok := gormSink(ev, fn, c); ok {
+						sinks = append(sinks, s)
+					}
+				}
 			}
 		}
 		sinks = append(sinks, funcValueSinks(fn, byFunc)...)

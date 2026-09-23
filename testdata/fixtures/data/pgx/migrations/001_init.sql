@@ -1,0 +1,16 @@
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL
+);
+
+CREATE TABLE notes (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users (id),
+    body TEXT NOT NULL
+);
+
+CREATE TABLE audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    action TEXT NOT NULL
+);

@@ -1,0 +1,30 @@
+[
+  {
+    "caller": "(*example.com/pgxapp.store).importNotes",
+    "callee": "(*github.com/jackc/pgx/v5.Batch).Queue",
+    "tables": [
+      "audit_log:insert"
+    ]
+  },
+  {
+    "caller": "(*example.com/pgxapp.store).importNotes",
+    "callee": "(*github.com/jackc/pgx/v5.Batch).Queue",
+    "tables": [
+      "notes:insert"
+    ]
+  },
+  {
+    "caller": "(*example.com/pgxapp.store).moveNotes",
+    "callee": "(*github.com/jackc/pgx/v5/pgxpool.Tx).Exec",
+    "tables": [
+      "notes:update"
+    ]
+  },
+  {
+    "caller": "(*example.com/pgxapp.store).userName",
+    "callee": "(*github.com/jackc/pgx/v5/pgxpool.Pool).QueryRow",
+    "tables": [
+      "users:select"
+    ]
+  }
+]

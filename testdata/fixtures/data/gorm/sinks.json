@@ -1,0 +1,65 @@
+[
+  {
+    "caller": "(*example.com/gormapp.store).audit",
+    "callee": "(*gorm.io/gorm.DB).Create",
+    "tables": [
+      "audit_log:insert"
+    ]
+  },
+  {
+    "caller": "(*example.com/gormapp.store).countNotes",
+    "callee": "(*gorm.io/gorm.DB).Count",
+    "tables": [
+      "notes:select"
+    ]
+  },
+  {
+    "caller": "(*example.com/gormapp.store).createNote",
+    "callee": "(*gorm.io/gorm.DB).Create",
+    "tables": [
+      "notes:insert"
+    ]
+  },
+  {
+    "caller": "(*example.com/gormapp.store).deleteNote",
+    "callee": "(*gorm.io/gorm.DB).Delete",
+    "tables": [
+      "notes:delete"
+    ]
+  },
+  {
+    "caller": "(*example.com/gormapp.store).emails",
+    "callee": "(*gorm.io/gorm.DB).Raw",
+    "tables": [
+      "users:select"
+    ]
+  },
+  {
+    "caller": "(*example.com/gormapp.store).notes",
+    "callee": "(*gorm.io/gorm.DB).Find",
+    "tables": [
+      "notes:select"
+    ]
+  },
+  {
+    "caller": "(*example.com/gormapp.store).purge",
+    "callee": "(*gorm.io/gorm.DB).Exec",
+    "tables": [
+      "audit_log:delete"
+    ]
+  },
+  {
+    "caller": "(*example.com/gormapp.store).rename",
+    "callee": "(*gorm.io/gorm.DB).Update",
+    "tables": [
+      "users:update"
+    ]
+  },
+  {
+    "caller": "(*example.com/gormapp.store).userByEmail",
+    "callee": "(*gorm.io/gorm.DB).First",
+    "tables": [
+      "users:select"
+    ]
+  }
+]

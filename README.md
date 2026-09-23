@@ -7,7 +7,8 @@
 See [docs/PLAN.md](docs/PLAN.md) for the design and the [roadmap issue](https://github.com/tewecske/interactivecodebase/issues/30) for progress.
 
 > Status: early development. `analyze` and `query` build the call graph (functions, calls, interface dispatch,
-> implementations), discover routes (net/http, chi, gin, echo, gorilla/mux), sinks (SQL, files, HTTP, SMTP, exec, env), SQL tables from migrations
+> implementations), discover routes (net/http, chi, gin, echo, gorilla/mux), sinks (SQL via database/sql, sqlx, sqlc, pgx and
+> gorm; files, HTTP, SMTP, exec, env), SQL tables from migrations
 > route access levels, pages (templates, HTMX requests, assets), navigation between routes (links, forms,
 > redirects) and route flows down to the tables they touch; the web UI and MCP are not implemented yet.
 
@@ -103,7 +104,7 @@ Tools: `list_routes`, `get_route`, `get_flow` (text or Mermaid), `get_node`, `ge
 ## Development
 
 ```sh
-make check   # gofmt check, go vet, golangci-lint, tests (with -race), router fixtures (without)
+make check   # gofmt check, go vet, golangci-lint, tests (with -race), library fixtures (without)
 make test
 make lint    # runs a pinned golangci-lint via `go run`, no install needed
 make ui      # builds and tests the web UI (ui/, Vite + React + Mermaid) into internal/webui/dist
@@ -116,6 +117,8 @@ make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_G
 - `testdata/fixtures/webapp/`: a small stdlib-only web app covering the patterns analysis must handle, with `expected.json`.
 - `testdata/fixtures/routers/{chi,gin,echo,gorillamux}/`: one small module per router library (prefixes, groups,
   mounts, middleware) with its golden `routes.json`.
+- `testdata/fixtures/data/{sqlx,sqlc,gorm,pgx}/`: one small module per data-access library with the SQL sinks and
+  tables it should find in `sinks.json`.
 - `testdata/golden/goweb.json`: expectations for [goweb](https://github.com/tewecske/goweb) at a pinned commit.
 
 `internal/fixture` loads both and, until the analyzers exist, checks that every function, type, table, foreign key, template and asset the expectations name really exists.

@@ -28,3 +28,27 @@ func TestFrameworkJoinAndPackages(t *testing.T) {
 		}
 	}
 }
+
+func TestPositional(t *testing.T) {
+	for in, want := range map[string]string{
+		"INSERT INTO users (email, name) VALUES (:email, :name)": "INSERT INTO users (email, name) VALUES ($1, $2)",
+		"UPDATE t SET a = :a WHERE b <> ''::text AND c = ':x'":   "UPDATE t SET a = $1 WHERE b <> ''::text AND c = ':x'",
+		"SELECT * FROM t WHERE id = :user.id":                    "SELECT * FROM t WHERE id = $1",
+		"DELETE FROM t WHERE a < ? AND b = '?'":                  "DELETE FROM t WHERE a < $1 AND b = '?'",
+	} {
+		if got := positional(in); got != want {
+			t.Errorf("positional(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestGormNaming(t *testing.T) {
+	for in, want := range map[string]string{
+		"User": "users", "AuditEntry": "audit_entries", "UserID": "user_ids", "HTTPServer": "http_servers",
+		"Person": "people", "Status": "statuses", "Box": "boxes", "Day": "days",
+	} {
+		if got := plural(snakeCase(in)); got != want {
+			t.Errorf("table for %s = %q, want %q", in, got, want)
+		}
+	}
+}

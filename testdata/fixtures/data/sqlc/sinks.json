@@ -1,0 +1,23 @@
+[
+  {
+    "caller": "(*example.com/sqlcapp/db.Queries).CreateNote",
+    "callee": "(example.com/sqlcapp/db.DBTX).ExecContext",
+    "tables": [
+      "notes:insert"
+    ]
+  },
+  {
+    "caller": "(*example.com/sqlcapp/db.Queries).GetUser",
+    "callee": "(example.com/sqlcapp/db.DBTX).QueryRowContext",
+    "tables": [
+      "users:select"
+    ]
+  },
+  {
+    "caller": "(*example.com/sqlcapp/db.Queries).ListNotes",
+    "callee": "(example.com/sqlcapp/db.DBTX).QueryContext",
+    "tables": [
+      "notes:select"
+    ]
+  }
+]
