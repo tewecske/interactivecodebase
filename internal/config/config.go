@@ -1,5 +1,5 @@
 // Package config reads icb.yaml, the per-project settings for analysis:
-// which packages to load, what to leave out, extra sinks, authentication
+// the language, which packages to load, what to leave out, extra sinks, authentication
 // guards, migrations and values the analysis cannot resolve statically.
 package config
 
@@ -18,6 +18,7 @@ import (
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/scala"
 )
 
 // FileName is the file Find looks for in the analyzed directory.
@@ -25,6 +26,11 @@ const FileName = "icb.yaml"
 
 // Config is the content of icb.yaml. Every field is optional.
 type Config struct {
+	// Lang is the project's language, go or scala; default: scala for a
+	// directory with a build.sbt and no go.mod, go otherwise.
+	Lang string `yaml:"lang"`
+	// Scala configures the analysis of an sbt project.
+	Scala Scala `yaml:"scala"`
 	// Packages are the package patterns to analyze, relative to the
 	// module root; default "./...".
 	Packages []string `yaml:"packages"`
@@ -51,6 +57,19 @@ type Config struct {
 	// variable read with os.Getenv. Route prefixes from configuration are
 	// the typical use.
 	Values map[string][]string `yaml:"values"`
+}
+
+// Scala configures how icb runs sbt and the Scala extractor.
+type Scala struct {
+	// Extractor is the icb-scala command (extractors/scala; make
+	// scala-extractor builds it), a relative path being relative to the
+	// project; default $ICB_SCALA, then icb-scala on PATH.
+	Extractor string `yaml:"extractor"`
+	// SBT is the sbt command; default sbt.
+	SBT string `yaml:"sbt"`
+	// Projects are the sbt projects to analyze, e.g. [backend, frontend];
+	// default: every project the build aggregates.
+	Projects []string `yaml:"projects"`
 }
 
 // Sink is a custom sink rule.
@@ -107,6 +126,9 @@ func Parse(r io.Reader) (*Config, error) {
 
 func (c *Config) validate() error {
 	var errs []error
+	if !slices.Contains([]string{"", analysis.LangGo, analysis.LangScala}, c.Lang) {
+		errs = append(errs, fmt.Errorf("lang %q is not one of go, scala", c.Lang))
+	}
 	if c.Dialect != "" && c.Dialect != "postgres" {
 		errs = append(errs, fmt.Errorf("dialect %q is not supported (only postgres)", c.Dialect))
 	}
@@ -171,6 +193,26 @@ func (c *Config) Options() analysis.Options {
 	opts.MigrationDirs = c.Migrations
 	opts.Values = c.Values
 	return opts
+}
+
+// ScalaOptions converts the scala section to the Scala analysis's options.
+func (c *Config) ScalaOptions() scala.Options {
+	if c == nil {
+		return scala.Options{}
+	}
+	return scala.Options{Extractor: c.Scala.Extractor, SBT: c.Scala.SBT, Projects: c.Scala.Projects}
+}
+
+// ProjectLang returns the language of the project in dir: the config's
+// lang, else scala for an sbt build without go.mod, else go.
+func (c *Config) ProjectLang(dir string) string {
+	if c != nil && c.Lang != "" {
+		return c.Lang
+	}
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil && scala.IsProject(dir) {
+		return analysis.LangScala
+	}
+	return analysis.LangGo
 }
 
 // Load reads the config at path, or when path is empty the icb.yaml in

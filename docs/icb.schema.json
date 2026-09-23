@@ -6,6 +6,31 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "lang": {
+      "description": "The project's language. Default: scala for a directory with a build.sbt and no go.mod, go otherwise.",
+      "enum": ["go", "scala"]
+    },
+    "scala": {
+      "description": "How icb analyzes an sbt project: sbt compiles it and reports each project's classpath, then the icb-scala extractor reads the TASTy of the project's own classes.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "extractor": {
+          "description": "The icb-scala command (make scala-extractor writes extractors/scala/target/icb-scala). A relative path is relative to the project. Default: $ICB_SCALA, then icb-scala on PATH.",
+          "type": "string"
+        },
+        "sbt": {
+          "description": "The sbt command. Default: sbt.",
+          "type": "string"
+        },
+        "projects": {
+          "description": "The sbt projects to analyze. Default: every project the build aggregates.",
+          "type": "array",
+          "items": { "type": "string" },
+          "examples": [["backend"]]
+        }
+      }
+    },
     "packages": {
       "description": "Package patterns to analyze, relative to the module root. Default: ./...",
       "type": "array",

@@ -5,7 +5,7 @@ GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lin
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X github.com/tewecske/interactivecodebase/internal/cli.Version=$(VERSION)
 
-.PHONY: build clean fmt-check vet test test-libs test-goweb lint ui check
+.PHONY: build clean fmt-check vet test test-libs test-goweb test-scala scala-extractor lint ui check
 
 build: ui
 	mkdir -p bin
@@ -36,6 +36,26 @@ test-libs:
 test-goweb:
 	$(GO) test -p 2 -tags goweb -run Goweb -v ./...
 
+# The Scala extractor (extractors/scala) and the sbt it is built with run on
+# the JVM; heaps are capped because the machine may be shared.
+SBT := sbt -batch -no-colors -J-Xmx1500m
+
+# Builds the Scala extractor and writes extractors/scala/target/icb-scala,
+# the command icb runs for sbt projects (see ICB_SCALA in the README).
+scala-extractor:
+	cd extractors/scala && $(SBT) launcher
+
+# Tests the extractor, then analyzes testdata/fixtures/scala/zioapp through
+# sbt and the extractor. Skipped without sbt and java.
+test-scala:
+	@if ! command -v sbt >/dev/null || ! command -v java >/dev/null; then \
+		echo "test-scala: sbt or java not installed, skipped"; \
+	else \
+		set -e; \
+		(cd extractors/scala && $(SBT) test launcher); \
+		ICB_SCALA=$(CURDIR)/extractors/scala/target/icb-scala $(GO) test -count=1 -run 'ScalaFixture' ./internal/cli; \
+	fi
+
 lint:
 	$(GOLANGCI_LINT) run ./...
 
@@ -44,4 +64,4 @@ lint:
 ui:
 	cd ui && npm ci && npm test && npm run build
 
-check: fmt-check vet lint test test-libs
+check: fmt-check vet lint test test-libs test-scala

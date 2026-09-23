@@ -15,6 +15,7 @@ import (
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/config"
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/scala"
 )
 
 func runAnalyze(ctx context.Context, e *env, args []string) (err error) {
@@ -24,11 +25,7 @@ func runAnalyze(ctx context.Context, e *env, args []string) (err error) {
 	if err := parse(fs, args, 1); err != nil {
 		return err
 	}
-	opts, err := loadOptions(fs.Arg(0), *cfgPath)
-	if err != nil {
-		return err
-	}
-	p, release, err := openAnalysis(ctx, fs.Arg(0), opts)
+	p, release, err := openProject(ctx, fs.Arg(0), *cfgPath)
 	if err != nil {
 		return err
 	}
@@ -44,8 +41,13 @@ func runAnalyze(ctx context.Context, e *env, args []string) (err error) {
 	fmt.Fprintf(e.stdout, "module %s (%s)\n", p.Module, p.Dir)
 	fmt.Fprintf(e.stdout, "%d packages, %d functions in the module, %d in the whole program\n",
 		s.Packages, s.ModuleFunctions, s.Functions)
-	fmt.Fprintf(e.stdout, "load %v, ssa %v, call graph %v, graph %v, total %v\n\n",
-		round(s.Load), round(s.SSA), round(s.CallGraph), round(s.Write), round(s.Total()))
+	if p.Lang == analysis.LangScala {
+		fmt.Fprintf(e.stdout, "sbt %v, extractor %v, graph %v, total %v\n\n",
+			round(s.Load), round(s.CallGraph), round(s.Write), round(s.Total()))
+	} else {
+		fmt.Fprintf(e.stdout, "load %v, ssa %v, call graph %v, graph %v, total %v\n\n",
+			round(s.Load), round(s.SSA), round(s.CallGraph), round(s.Write), round(s.Total()))
+	}
 	fmt.Fprintf(e.stdout, "nodes: %s\n", formatCounts(counts.Nodes))
 	fmt.Fprintf(e.stdout, "edges: %s\n", formatCounts(counts.Edges))
 	return nil
@@ -56,13 +58,42 @@ func configFlag(fs *flag.FlagSet) *string {
 	return fs.String("config", "", "config file (default: "+config.FileName+" in <dir>, if present)")
 }
 
-// loadOptions reads the analysis options from the config for dir.
-func loadOptions(dir, path string) (analysis.Options, error) {
-	c, _, err := config.Load(dir, path)
+// openProject analyzes dir in its language (see config.ProjectLang),
+// reading the config at cfgPath or dir's icb.yaml; the caller must call
+// release when done.
+func openProject(ctx context.Context, dir, cfgPath string) (p *analysis.Project, release func() error, err error) {
+	c, _, err := config.Load(dir, cfgPath)
 	if err != nil {
-		return analysis.Options{}, err
+		return nil, nil, err
 	}
-	return c.Options(), nil
+	if c.ProjectLang(dir) == analysis.LangScala {
+		if err := checkDir(dir); err != nil {
+			return nil, nil, err
+		}
+		p, err := scala.Open(ctx, dir, c.ScalaOptions())
+		if err != nil {
+			return nil, nil, err
+		}
+		return p, p.Close, nil
+	}
+	return openAnalysis(ctx, dir, c.Options())
+}
+
+// analyzeProject analyzes dir again for live reloading, without the
+// openAnalysis indirection tests use to share an analysis.
+func analyzeProject(ctx context.Context, dir, cfgPath string) (*analysis.Project, error) {
+	c, _, err := config.Load(dir, cfgPath)
+	if err != nil {
+		return nil, err
+	}
+	if c.ProjectLang(dir) == analysis.LangScala {
+		return scala.Open(ctx, dir, c.ScalaOptions())
+	}
+	r, err := analysis.Analyze(ctx, dir, c.Options())
+	if err != nil {
+		return nil, err
+	}
+	return r.Project(), nil
 }
 
 // openAnalysis analyzes dir; the caller must call release when done. Tests

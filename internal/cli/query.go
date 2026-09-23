@@ -66,11 +66,7 @@ func runQuery(ctx context.Context, e *env, args []string) (err error) {
 		return errUsage
 	}
 
-	opts, err := loadOptions(fs.Arg(0), *cfgPath)
-	if err != nil {
-		return err
-	}
-	p, release, err := openAnalysis(ctx, fs.Arg(0), opts)
+	p, release, err := openProject(ctx, fs.Arg(0), *cfgPath)
 	if err != nil {
 		return err
 	}

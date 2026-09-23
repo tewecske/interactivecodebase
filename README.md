@@ -1,6 +1,6 @@
 # interactivecodebase (`icb`)
 
-`icb` statically analyzes a Go web codebase and lets you explore it top-down, in a web UI or through MCP for AI agents:
+`icb` statically analyzes a Go web codebase (and, in progress, Scala 3 sbt projects) and lets you explore it top-down, in a web UI or through MCP for AI agents:
 
 **pages → API/HTMX calls and static assets → handler call flow → sinks (SQL, file IO, 3rd-party calls) → code, types and DB schema**
 
@@ -66,6 +66,34 @@ keys are errors. Editors that speak the YAML language server complete and check 
 [docs/icb.schema.json](docs/icb.schema.json); [examples/goweb/icb.yaml](examples/goweb/icb.yaml) is a worked
 example. With `serve -watch`, editing `icb.yaml` re-analyzes too.
 
+## Scala (sbt) projects
+
+A directory with a `build.sbt` and no `go.mod` is analyzed as a Scala 3 sbt project (`lang: scala` in `icb.yaml`
+forces it). It needs a JDK, sbt and the extractor in [extractors/scala](extractors/scala), which reads the
+compiled TASTy with the Scala 3 TASTy Inspector and writes the code graph in the
+[docs/graph.schema.json](docs/graph.schema.json) format:
+
+```sh
+make scala-extractor                                   # writes extractors/scala/target/icb-scala
+export ICB_SCALA=$PWD/extractors/scala/target/icb-scala  # or scala.extractor in icb.yaml, or icb-scala on PATH
+bin/icb analyze ../gathedge
+```
+
+icb runs `sbt -batch -error -J-Xmx1500m "export Compile/fullClasspath"` in the project (or
+`export <p>/Compile/fullClasspath` for each of `scala.projects`), which compiles it and prints each project's
+classpath. Directories inside the project are its own classes; everything else is a library, read only to
+resolve types. A project whose classes another one already includes (a `shared` module a `backend` depends on)
+is skipped. The extractor then runs once with every project (`icb-scala --root DIR -o FILE (--classpath CP
+CLASSDIR...)...`, heap capped at 1500 MB; `ICB_SCALA_JAVA_OPTS` replaces the JVM options).
+
+The graph has a `func` node per def or val of an object or package (`func:pkg.Obj.name`), a `method` node per
+def or val of a class or trait (`method:(pkg.Class).name`), `calls` edges (lambdas and local defs count towards
+the enclosing def), calls of abstract methods as `interface_call` nodes that `dispatches_to` the implementations
+(class-hierarchy analysis), and `type` nodes (`class`, `trait`, `object`, `enum`) with `implements` and
+`uses_type` edges for the types diagram. Calls into libraries, compiler-generated members and inlined code
+(the call sites of `inline def`s) are left out. Routes, SQL and the frontend are not detected yet, and `serve -watch` does
+not react to Scala sources yet. An sbt shell already open in the project may conflict with icb's batch sbt run.
+
 ## JSON API
 
 `icb serve` analyzes the module once (with `-watch`, again whenever `.go`, template or `.sql` files, `go.mod`
@@ -125,6 +153,7 @@ make test
 make lint    # runs a pinned golangci-lint via `go run`, no install needed
 make ui      # builds and tests the web UI (ui/, Vite + React + Mermaid) into internal/webui/dist
 cd ui && npm run dev   # UI dev server on :5173, proxying /api to a running icb serve
+make test-scala  # sbt test of the Scala extractor, then the zioapp fixture through sbt (part of make check; needs sbt and a JDK)
 make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_GOWEB_DIR) at the pinned commit
 ```
 
@@ -137,6 +166,8 @@ make test-goweb  # checks testdata/golden/goweb.json against ../goweb (or $ICB_G
   tables it should find in `sinks.json`.
 - `testdata/fixtures/entrypoints/`: commands, a worker with a job table, gRPC and NATS (stub modules via `replace`),
   with its golden `entries.json`.
+- `testdata/fixtures/scala/zioapp/`: a small sbt Scala 3 app shaped like gathedge (zio-http routes, a service
+  trait and implementation, a Quill repository, a shared module), for the Scala extractor.
 - `testdata/golden/goweb.json`: expectations for [goweb](https://github.com/tewecske/goweb) at a pinned commit.
 
 `internal/fixture` loads both and, until the analyzers exist, checks that every function, type, table, foreign key, template and asset the expectations name really exists.

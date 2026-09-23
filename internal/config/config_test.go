@@ -11,6 +11,7 @@ import (
 
 	"github.com/tewecske/interactivecodebase/internal/analysis"
 	"github.com/tewecske/interactivecodebase/internal/graph"
+	"github.com/tewecske/interactivecodebase/internal/scala"
 )
 
 func TestParseAndOptions(t *testing.T) {
@@ -74,11 +75,47 @@ func TestParseRejects(t *testing.T) {
 		{"sinks: [{kind: http, func: f, arg: -1}]", "arg must be >= 0"},
 		{"auth: {guards: [{func: f, role: root}]}", `role "root" is not one of`},
 		{"auth: {roleFields: {owner: x}}", `role "owner" is not one of admin, guest`},
+		{"lang: java", `lang "java" is not one of go, scala`},
+		{"scala: {sbtProject: x}", "field sbtProject not found"},
 	} {
 		_, err := Parse(strings.NewReader(c.yaml))
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%q: error %v, want %q", c.yaml, err, c.want)
 		}
+	}
+}
+
+func TestLangAndScalaOptions(t *testing.T) {
+	dir := t.TempDir()
+	var none *Config
+	if lang := none.ProjectLang(dir); lang != analysis.LangGo {
+		t.Errorf("empty dir: %s", lang)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "build.sbt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if lang := none.ProjectLang(dir); lang != analysis.LangScala {
+		t.Errorf("sbt build: %s", lang)
+	}
+	c, err := Parse(strings.NewReader("lang: go\nscala: {extractor: bin/icb-scala, sbt: sbtn, projects: [backend]}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lang := c.ProjectLang(dir); lang != analysis.LangGo {
+		t.Errorf("lang: go in the config: %s", lang)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if lang := none.ProjectLang(dir); lang != analysis.LangGo {
+		t.Errorf("go.mod next to build.sbt: %s", lang)
+	}
+	opts := c.ScalaOptions()
+	if opts.Extractor != "bin/icb-scala" || opts.SBT != "sbtn" || !slices.Equal(opts.Projects, []string{"backend"}) {
+		t.Errorf("scala options = %+v", opts)
+	}
+	if !reflect.DeepEqual(none.ScalaOptions(), scala.Options{}) {
+		t.Errorf("no config: %+v", none.ScalaOptions())
 	}
 }
 
@@ -145,4 +182,5 @@ func TestExampleAndSchema(t *testing.T) {
 	}())
 	check("sinks", reflect.TypeFor[Sink](), schema.Properties["sinks"].Items.Properties)
 	check("auth", reflect.TypeFor[Auth](), schema.Properties["auth"].Properties)
+	check("scala", reflect.TypeFor[Scala](), schema.Properties["scala"].Properties)
 }
