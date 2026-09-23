@@ -60,6 +60,13 @@ const responses: Record<string, unknown> = {
       }],
     }],
   },
+  [`api/source?${new URLSearchParams({ file: "internal/web/handlers.go", start: "1" })}`]: {
+    file: "internal/web/handlers.go", start: 1, end: 3, total: 3,
+    lines: ["package web", "", "func (h *noteHandler) user() { h.auth.Authenticate(nil) }"],
+  },
+  [`api/refs?${new URLSearchParams({ file: "internal/web/handlers.go" })}`]: [
+    { line: 3, col: 39, endCol: 51, name: "Authenticate", kind: "method", target: { file: "internal/web/auth.go", startLine: 32 }, node: "method:(*example.com/webapp/internal/web.Authenticator).Authenticate" },
+  ],
   "api/node?id=func%3Aexample.com%2Fapp.F": {
     node: { id: "func:example.com/app.F", kind: "func", name: "F", package: "example.com/app", pos: { file: "app.go", startLine: 3 } },
     out: { calls: [{ edge: { id: 1, from: "func:example.com/app.F", to: "func:example.com/app.G", kind: "calls", pos: {} }, node: { id: "func:example.com/app.G", kind: "func", name: "G", pos: {} } }] },
@@ -148,6 +155,19 @@ describe("App", () => {
     const tree = await render("#/flow?" + new URLSearchParams({ route: "POST /{lang}/notes", mode: "tree" }));
     expect(tree.textContent).toContain("insert table");
     expect(tree.textContent).toContain("INSERT INTO audit_events");
+  });
+
+  it("shows highlighted code with identifiers linked to definitions", async () => {
+    mockFetch();
+    const el = await render("#/code?" + new URLSearchParams({ file: "internal/web/handlers.go", line: "3" }));
+    await act(async () => new Promise((r) => setTimeout(r, 300))); // Shiki loads lazily
+    const lines = el.querySelectorAll(".code .line");
+    expect(lines).toHaveLength(3);
+    expect(lines[2].classList.contains("marked")).toBe(true);
+    const ref = el.querySelector<HTMLAnchorElement>(".code a.ref");
+    expect(ref?.textContent).toBe("Authenticate");
+    expect(decodeURIComponent(ref!.getAttribute("href")!)).toBe("#/code?file=internal/web/auth.go&line=32");
+    expect(lines[2].textContent).toBe("3func (h *noteHandler) user() { h.auth.Authenticate(nil) }");
   });
 
   it("toggles the theme", async () => {

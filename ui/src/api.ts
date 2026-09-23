@@ -90,6 +90,16 @@ export interface Source {
   lines: string[];
 }
 
+export interface Ref {
+  line: number;
+  col: number;
+  endCol: number;
+  name: string;
+  target?: Pos;
+  node?: string;
+  kind: string;
+}
+
 export interface TableDetail {
   table: GraphNode;
   columns: GraphNode[];
@@ -130,6 +140,7 @@ export const api = {
   flow: (route: string, method?: string, prune?: string) => get<FlowStep>("flow", { route, method, prune }),
   source: (file: string, start?: number, end?: number) =>
     get<Source>("source", { file, start: start?.toString(), end: end?.toString() }),
+  refs: (file: string) => get<Ref[]>("refs", { file }),
   tables: () => get<GraphNode[]>("tables"),
   table: (name: string) => get<TableDetail>("table", { name }),
   search: (q: string, kind?: string) => get<GraphNode[]>("search", { q, kind }),

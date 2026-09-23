@@ -219,3 +219,35 @@ func TestDiagramsGolden(t *testing.T) {
 		})
 	}
 }
+
+func TestRefs(t *testing.T) {
+	var refs []Ref
+	if code := get(t, "/api/refs?file=internal/web/handlers.go", &refs); code != 200 || len(refs) == 0 {
+		t.Fatalf("refs %d, %d found", code, len(refs))
+	}
+	var auth, service *Ref
+	for i := range refs {
+		switch {
+		case refs[i].Name == "Authenticate" && auth == nil:
+			auth = &refs[i]
+		case refs[i].Name == "Create" && refs[i].Kind == "method" && service == nil:
+			service = &refs[i]
+		}
+	}
+	if auth == nil || auth.Target == nil || auth.Target.File != "internal/web/auth.go" ||
+		auth.Node != "method:(*example.com/webapp/internal/web.Authenticator).Authenticate" {
+		t.Errorf("Authenticate ref = %+v", auth)
+	}
+	if service == nil || service.Node != "method:(*example.com/webapp/internal/notes.Service).Create" {
+		t.Errorf("Service.Create ref = %+v", service)
+	}
+	for _, r := range refs {
+		if r.EndCol-r.Col != len(r.Name) {
+			t.Errorf("ref %+v: column range does not match the name", r)
+		}
+	}
+	var e map[string]string
+	if code := get(t, "/api/refs?file=templates/notes.html", &e); code != 404 {
+		t.Errorf("non-Go file: %d", code)
+	}
+}
