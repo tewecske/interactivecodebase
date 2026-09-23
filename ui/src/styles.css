@@ -136,6 +136,10 @@ ol.steps { margin: 0; padding-left: 28px; font-size: 12.5px; max-height: calc(10
 ol.steps li { padding: 2px 0; word-break: break-all; }
 ul.tree, ul.tree ul { list-style: none; padding-left: 18px; border-left: 1px solid var(--border); margin: 2px 0; }
 ul.tree li { padding: 2px 0; }
+.snippet-toggle { display: inline-block; width: 1.4em; padding: 0; border: none; background: none; color: var(--muted); cursor: pointer; font-size: 12px; }
+button.snippet-toggle:hover { color: var(--accent); }
+.snippet { margin: 4px 0 6px 1.4em; max-width: 100%; }
+.snippet .code { max-height: 480px; overflow: auto; }
 pre.detail.small { margin: 4px 0; font-size: 11.5px; }
 @media (max-width: 1000px) { .flow-layout { grid-template-columns: 1fr; } }
 .code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12.5px; line-height: 1.55; background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 0; overflow-x: auto; }

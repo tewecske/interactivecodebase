@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { api, type FlowStep } from "../api";
+import { Code } from "../components/Code";
 import { KindBadge, Loaded, PosLink } from "../components/Common";
 import { MermaidView } from "../components/Mermaid";
 import { href, navigate, nodeHref } from "../router";
@@ -22,6 +24,9 @@ export function FlowView({ params, theme }: { params: Record<string, string>; th
   const set = (p: Record<string, string | undefined>) => navigate("flow", { route, prune, method: method || undefined, mode, ...p });
   const diagram = useAsync(() => api.diagram("flow", { route, prune, method: method || undefined }), [route, prune, method]);
   const tree = useAsync(() => api.flow(route, method || undefined, prune), [route, prune, method]);
+  // Expand or collapse every step's code at once; gen tells steps apart
+  // clicks on the same button.
+  const [allCode, setAllCode] = useState({ open: false, gen: 0 });
 
   return (
     <section>
@@ -38,6 +43,14 @@ export function FlowView({ params, theme }: { params: Record<string, string>; th
           <button className={mode === "sequence" ? "on" : ""} onClick={() => set({ mode: "sequence" })}>Sequence</button>
           <button className={mode === "tree" ? "on" : ""} onClick={() => set({ mode: "tree" })}>Call tree</button>
         </div>
+        {mode === "tree" && (
+          <div className="segmented">
+            <button onClick={() => setAllCode((c) => ({ open: true, gen: c.gen + 1 }))} title="Show the code of every step, so the flow reads top to bottom">
+              Expand all code
+            </button>
+            <button onClick={() => setAllCode((c) => ({ open: false, gen: c.gen + 1 }))}>Collapse all code</button>
+          </div>
+        )}
         <label>
           show{" "}
           <select value={prune} onChange={(e) => set({ prune: e.target.value })}>
@@ -79,7 +92,15 @@ export function FlowView({ params, theme }: { params: Record<string, string>; th
           )}
         </Loaded>
       ) : (
-        <Loaded state={tree}>{(t) => <ul className="tree">{t.children?.map((c, i) => <TreeStep key={i} step={c} />)}</ul>}</Loaded>
+        <Loaded state={tree}>
+          {(t) => (
+            <ul className="tree">
+              {t.children?.map((c, i) => (
+                <TreeStep key={i} step={c} allCode={allCode} theme={theme} />
+              ))}
+            </ul>
+          )}
+        </Loaded>
       )}
     </section>
   );
@@ -92,13 +113,38 @@ function stepLabel(id: string): string {
   return kind.startsWith("sink.") ? `${kind} at ${rest}` : short;
 }
 
-function TreeStep({ step }: { step: FlowStep }) {
+// snippet is the source range a step's code shows: a function's body, or
+// the line of a call, sink or declaration; the lines where its children are
+// called are marked.
+function snippet(step: FlowStep): { file: string; from: number; to: number; marks: number[] } | null {
+  const p = step.node.pos;
+  if (!p?.file || !p.startLine || step.node.kind === "sql_table") return null;
+  const from = p.startLine;
+  const to = Math.max(p.endLine ?? from, from);
+  const marks = (step.children ?? [])
+    .map((c) => c.edge.pos)
+    .filter((cp) => cp?.file === p.file && cp.startLine !== undefined && cp.startLine >= from && cp.startLine <= to)
+    .map((cp) => cp!.startLine!);
+  return { file: p.file, from, to, marks: from === to ? [from] : marks };
+}
+
+function TreeStep({ step, allCode, theme }: { step: FlowStep; allCode: { open: boolean; gen: number }; theme: Theme }) {
   const n = step.node;
   const isTable = n.kind === "sql_table";
   const note = step.cycle ? " (recursive)" : step.ref ? " (see above)" : step.truncated ? " (depth limit)" : "";
   const branch = step.edge.attrs?.branch;
+  const code = snippet(step);
+  const [open, setOpen] = useState(allCode.open);
+  useEffect(() => setOpen(allCode.open), [allCode]);
   return (
     <li>
+      {code ? (
+        <button className="snippet-toggle" aria-expanded={open} title={open ? "Hide code" : "Show code"} onClick={() => setOpen(!open)}>
+          {open ? "▾" : "▸"}
+        </button>
+      ) : (
+        <span className="snippet-toggle" />
+      )}
       <KindBadge kind={isTable ? `${step.edge.attrs?.op ?? ""} table` : n.kind} />{" "}
       <a href={nodeHref(n.id)}>{n.name}</a>
       {step.calls && step.calls > 1 ? ` ×${step.calls}` : ""}
@@ -109,10 +155,15 @@ function TreeStep({ step }: { step: FlowStep }) {
       )}
       <span className="muted">{note}</span> {!isTable && <PosLink pos={n.pos} />}
       {n.kind.startsWith("sink.") && n.detail && <pre className="detail small">{n.detail}</pre>}
+      {code && open && (
+        <div className="snippet">
+          <Code file={code.file} from={code.from} to={code.to} marks={code.marks} theme={theme} />
+        </div>
+      )}
       {step.children && step.children.length > 0 && (
         <ul>
           {step.children.map((c, i) => (
-            <TreeStep key={i} step={c} />
+            <TreeStep key={i} step={c} allCode={allCode} theme={theme} />
           ))}
         </ul>
       )}
