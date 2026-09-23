@@ -25,7 +25,7 @@ func runAnalyze(ctx context.Context, e *env, args []string) (err error) {
 	if err := parse(fs, args, 1); err != nil {
 		return err
 	}
-	p, release, err := openProject(ctx, fs.Arg(0), *cfgPath)
+	p, release, err := openProject(ctx, fs.Arg(0), *cfgPath, false)
 	if err != nil {
 		return err
 	}
@@ -60,8 +60,9 @@ func configFlag(fs *flag.FlagSet) *string {
 
 // openProject analyzes dir in its language (see config.ProjectLang),
 // reading the config at cfgPath or dir's icb.yaml; the caller must call
-// release when done.
-func openProject(ctx context.Context, dir, cfgPath string) (p *analysis.Project, release func() error, err error) {
+// release when done. watch says the project will be analyzed again as it
+// changes (serve -watch).
+func openProject(ctx context.Context, dir, cfgPath string, watch bool) (p *analysis.Project, release func() error, err error) {
 	c, _, err := config.Load(dir, cfgPath)
 	if err != nil {
 		return nil, nil, err
@@ -70,7 +71,7 @@ func openProject(ctx context.Context, dir, cfgPath string) (p *analysis.Project,
 		if err := checkDir(dir); err != nil {
 			return nil, nil, err
 		}
-		p, err := scala.Open(ctx, dir, c.ScalaOptions())
+		p, err := scala.Open(ctx, dir, scalaOptions(c, watch))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -81,19 +82,29 @@ func openProject(ctx context.Context, dir, cfgPath string) (p *analysis.Project,
 
 // analyzeProject analyzes dir again for live reloading, without the
 // openAnalysis indirection tests use to share an analysis.
-func analyzeProject(ctx context.Context, dir, cfgPath string) (*analysis.Project, error) {
+func analyzeProject(ctx context.Context, dir, cfgPath string, watch bool) (*analysis.Project, error) {
 	c, _, err := config.Load(dir, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 	if c.ProjectLang(dir) == analysis.LangScala {
-		return scala.Open(ctx, dir, c.ScalaOptions())
+		return scala.Open(ctx, dir, scalaOptions(c, watch))
 	}
 	r, err := analysis.Analyze(ctx, dir, c.Options())
 	if err != nil {
 		return nil, err
 	}
 	return r.Project(), nil
+}
+
+// scalaOptions are the config's Scala options. A watched project keeps an
+// sbt server running, unless the config says how sbt runs.
+func scalaOptions(c *config.Config, watch bool) scala.Options {
+	opts := c.ScalaOptions()
+	if watch && opts.Server == "" {
+		opts.Server = scala.ServerStart
+	}
+	return opts
 }
 
 // openAnalysis analyzes dir; the caller must call release when done. Tests

@@ -5,7 +5,7 @@ GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lin
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X github.com/tewecske/interactivecodebase/internal/cli.Version=$(VERSION)
 
-.PHONY: build clean fmt-check vet test test-libs test-goweb test-scala scala-extractor lint ui check
+.PHONY: build clean fmt-check vet test test-libs test-goweb test-scala test-gathedge scala-extractor lint ui check
 
 build: ui
 	mkdir -p bin
@@ -55,6 +55,13 @@ test-scala:
 		(cd extractors/scala && $(SBT) test launcher); \
 		ICB_SCALA=$(CURDIR)/extractors/scala/target/icb-scala $(GO) test -count=1 -run 'ScalaFixture' ./internal/cli; \
 	fi
+
+# Checks testdata/golden/gathedge.json against a gathedge checkout at the
+# pinned commit: ../gathedge next to this repository or its parent
+# directory, or ICB_GATHEDGE_DIR. sbt compiles it, writing only its target
+# directories. ICB_GATHEDGE_UPDATE=1 rewrites the golden instead.
+test-gathedge: scala-extractor
+	ICB_SCALA=$(CURDIR)/extractors/scala/target/icb-scala $(GO) test -count=1 -tags gathedge -run Gathedge -v ./internal/cli
 
 lint:
 	$(GOLANGCI_LINT) run ./...

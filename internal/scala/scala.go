@@ -7,15 +7,25 @@
 //
 // Both run on the JVM. The machine may be shared, so each gets a capped
 // heap: sbt through -J-Xmx, the extractor through its launcher script.
+//
+// sbt runs in batch mode, a JVM of its own for each analysis, unless an
+// sbt server is already running in the project (an open sbt shell, or
+// Metals): then its thin client (sbt --client) runs the command in that
+// server, which is quicker and does not compete with it for the target
+// directories. Options.Server = ServerStart starts a server when none is
+// running, for repeated analyses (serve -watch).
 package scala
 
 import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +40,20 @@ import (
 
 // DefaultHeap caps sbt's heap.
 const DefaultHeap = "1500m"
+
+// How Open runs sbt (Options.Server).
+const (
+	// ServerReuse runs the command in an sbt server already running in
+	// the project, through sbt --client, and otherwise runs sbt in batch
+	// mode. The default.
+	ServerReuse = "reuse"
+	// ServerStart runs it through sbt --client, which starts an sbt
+	// server in the background when none is running; the server stays
+	// until Shutdown (or sbt shutdown).
+	ServerStart = "start"
+	// ServerOff always runs sbt in batch mode.
+	ServerOff = "off"
+)
 
 // ExtractorEnv names the environment variable with the icb-scala command.
 const ExtractorEnv = "ICB_SCALA"
@@ -52,6 +76,9 @@ type Options struct {
 	// ("app.http.RouteSupport.authenticated") to the access they enforce
 	// on the routes they wrap: authenticated, admin or guest.
 	Guards map[string]string
+	// Server is how sbt runs: ServerReuse (default), ServerStart or
+	// ServerOff.
+	Server string
 }
 
 // IsProject reports whether dir holds an sbt build.
@@ -73,7 +100,7 @@ func Open(ctx context.Context, dir string, opts Options) (*analysis.Project, err
 		return nil, err
 	}
 	start := time.Now()
-	out, err := run(ctx, abs, sbt, sbtArgs(opts.Projects)...)
+	out, err := compile(ctx, abs, sbt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("scala: sbt: %w%s", err, tail(out))
 	}
@@ -153,6 +180,96 @@ func sbtArgs(projects []string) []string {
 	return args
 }
 
+// compile runs sbt's export of the classpaths, through a running sbt
+// server when opts.Server allows, else in batch mode. A client that
+// cannot reach a server falls back to batch mode.
+func compile(ctx context.Context, dir, sbt string, opts Options) ([]byte, error) {
+	mode := cmp.Or(opts.Server, ServerReuse)
+	if mode == ServerStart || (mode == ServerReuse && ServerRunning(dir)) {
+		out, err := runEnv(ctx, dir, clientEnv(), sbt, clientArgs(opts.Projects, mode == ServerStart)...)
+		if err == nil || !clientUnavailable(out) {
+			return out, err
+		}
+	}
+	return run(ctx, dir, sbt, sbtArgs(opts.Projects)...)
+}
+
+// clientArgs runs export through sbt's thin client; without start the
+// client fails rather than start a server.
+func clientArgs(projects []string, start bool) []string {
+	args := []string{"--client"}
+	if !start {
+		args = append(args, "--no-server")
+	}
+	if len(projects) == 0 {
+		return append(args, "export Compile/fullClasspath")
+	}
+	cmd := ""
+	for _, p := range projects {
+		cmd += "; export " + p + "/Compile/fullClasspath "
+	}
+	return append(args, strings.TrimSpace(cmd))
+}
+
+// clientEnv caps the heap of a server the thin client starts; sbt reads
+// SBT_OPTS when it launches it.
+func clientEnv() []string {
+	return append(os.Environ(), "SBT_OPTS="+strings.TrimSpace(os.Getenv("SBT_OPTS")+" -Xmx"+DefaultHeap))
+}
+
+// clientUnavailable reports whether the thin client failed without
+// running the command in a server: it printed no errors but ones about
+// the server (a compile error means the server ran it).
+func clientUnavailable(out []byte) bool {
+	for line := range strings.Lines(string(out)) {
+		if strings.HasPrefix(line, "[error]") && !strings.Contains(line, "server") {
+			return false
+		}
+	}
+	return true
+}
+
+// ServerRunning reports whether an sbt server is running for the build
+// in dir: sbt records its socket in project/target/active.json, and a
+// server that is gone leaves the file behind, so the socket is tried.
+func ServerRunning(dir string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, "project", "target", "active.json"))
+	if err != nil {
+		return false
+	}
+	var active struct {
+		URI string `json:"uri"`
+	}
+	if json.Unmarshal(data, &active) != nil {
+		return false
+	}
+	u, err := url.Parse(active.URI)
+	if err != nil || u.Scheme != "local" || u.Path == "" {
+		return false // a Windows named pipe, or a TCP server of an old sbt
+	}
+	conn, err := net.DialTimeout("unix", u.Path, time.Second)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+// Shutdown stops the sbt server running for the build in dir, if any.
+func Shutdown(ctx context.Context, dir string, opts Options) error {
+	if !ServerRunning(dir) {
+		return nil
+	}
+	sbt, err := exec.LookPath(cmp.Or(opts.SBT, "sbt"))
+	if err != nil {
+		return err
+	}
+	if out, err := run(ctx, dir, sbt, "--client", "--no-server", "shutdown"); err != nil {
+		return fmt.Errorf("scala: sbt shutdown: %w%s", err, tail(out))
+	}
+	return nil
+}
+
 // module is what the extractor reads for one sbt project: its class
 // directories (its own and those of the projects it depends on in the
 // build) and the libraries they compile against.
@@ -225,8 +342,13 @@ func extractorArgs(root, out string, guards map[string]string, mods []module) []
 
 // run runs name in dir and returns its combined output.
 func run(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+	return runEnv(ctx, dir, nil, name, args...)
+}
+
+// runEnv is run with the environment env (nil: icb's own).
+func runEnv(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = dir
+	cmd.Dir, cmd.Env = dir, env
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	err := cmd.Run()

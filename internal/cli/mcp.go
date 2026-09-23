@@ -22,7 +22,7 @@ func runMCP(ctx context.Context, e *env, args []string) (err error) {
 	if err := parse(fs, args, 1); err != nil {
 		return err
 	}
-	cur, err := openLive(ctx, fs.Arg(0), *cfgPath)
+	cur, err := openLive(ctx, fs.Arg(0), *cfgPath, false)
 	if err != nil {
 		return err
 	}
@@ -55,13 +55,13 @@ func goplsFor(cur *live.Current) *lsp.Client {
 }
 
 // openLive analyzes dir and returns a holder that can re-analyze it,
-// reading the config again each time.
-func openLive(ctx context.Context, dir, cfgPath string) (*live.Current, error) {
-	p, release, err := openProject(ctx, dir, cfgPath)
+// reading the config again each time; watch as for openProject.
+func openLive(ctx context.Context, dir, cfgPath string, watch bool) (*live.Current, error) {
+	p, release, err := openProject(ctx, dir, cfgPath, watch)
 	if err != nil {
 		return nil, err
 	}
 	return live.New(p, release, func(ctx context.Context) (*analysis.Project, error) {
-		return analyzeProject(ctx, dir, cfgPath)
+		return analyzeProject(ctx, dir, cfgPath, watch)
 	}), nil
 }

@@ -9,13 +9,18 @@ import (
 	"testing"
 )
 
-// Environment variables for the goweb golden test.
+// Environment variables for the goweb and gathedge golden tests.
 const (
 	// GowebDirEnv overrides where the goweb checkout is looked up.
 	GowebDirEnv = "ICB_GOWEB_DIR"
 	// GowebRequiredEnv, when non-empty, turns a missing or mismatched
 	// checkout into a failure instead of a skip (set in CI).
 	GowebRequiredEnv = "ICB_GOWEB_REQUIRED"
+	// GathedgeDirEnv overrides where the gathedge checkout is looked up.
+	GathedgeDirEnv = "ICB_GATHEDGE_DIR"
+	// GathedgeRequiredEnv, when non-empty, turns a missing or mismatched
+	// gathedge checkout into a failure instead of a skip.
+	GathedgeRequiredEnv = "ICB_GATHEDGE_REQUIRED"
 )
 
 // RepoRoot returns the interactivecodebase repository root.
@@ -57,19 +62,54 @@ func Goweb(t testing.TB) (dir string, exp Expectations) {
 	if dir == "" {
 		dir = filepath.Join(RepoRoot(), "..", "goweb")
 	}
+	checkCheckout(t, "goweb", dir, "go.mod", exp.Commit, GowebDirEnv, GowebRequiredEnv)
+	return dir, exp
+}
+
+// GathedgeGolden is testdata/golden/gathedge.json, the expectations for
+// gathedge, a Scala 3 sbt app.
+func GathedgeGolden() string {
+	return filepath.Join(RepoRoot(), "testdata", "golden", "gathedge.json")
+}
+
+// Gathedge returns the gathedge checkout, skipping the test (or failing
+// with $ICB_GATHEDGE_REQUIRED) when it is missing or not at commit. The
+// checkout is $ICB_GATHEDGE_DIR, else ../gathedge next to this repository
+// or next to its parent directory.
+func Gathedge(t testing.TB, commit string) string {
+	t.Helper()
+	dir := os.Getenv(GathedgeDirEnv)
+	if dir == "" {
+		dir = filepath.Join(RepoRoot(), "..", "gathedge")
+		if up := filepath.Join(RepoRoot(), "..", "..", "gathedge"); !exists(dir) && exists(up) {
+			dir = up
+		}
+	}
+	checkCheckout(t, "gathedge", dir, "build.sbt", commit, GathedgeDirEnv, GathedgeRequiredEnv)
+	return dir
+}
+
+// checkCheckout skips (or with $requiredEnv fails) the test unless dir
+// holds marker and its git HEAD is commit.
+func checkCheckout(t testing.TB, name, dir, marker, commit, dirEnv, requiredEnv string) {
+	t.Helper()
 	skipf := t.Skipf
-	if os.Getenv(GowebRequiredEnv) != "" {
+	if os.Getenv(requiredEnv) != "" {
 		skipf = t.Fatalf
 	}
-	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
-		skipf("goweb checkout not found at %s (set %s): %v", dir, GowebDirEnv, err)
+	if _, err := os.Stat(filepath.Join(dir, marker)); err != nil {
+		skipf("%s checkout not found at %s (set %s): %v", name, dir, dirEnv, err)
 	}
 	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
 	if err != nil {
-		skipf("cannot read goweb commit in %s: %v", dir, err)
+		skipf("cannot read %s commit in %s: %v", name, dir, err)
 	}
-	if head := strings.TrimSpace(string(out)); head != exp.Commit {
-		skipf("goweb at %s is at %s, expectations are pinned to %s", dir, head, exp.Commit)
+	if head := strings.TrimSpace(string(out)); head != commit {
+		skipf("%s at %s is at %s, expectations are pinned to %s", name, dir, head, commit)
 	}
-	return dir, exp
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

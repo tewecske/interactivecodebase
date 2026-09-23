@@ -78,6 +78,7 @@ func TestParseRejects(t *testing.T) {
 		{"auth: {roleFields: {owner: x}}", `role "owner" is not one of admin, guest`},
 		{"lang: java", `lang "java" is not one of go, scala`},
 		{"scala: {sbtProject: x}", "field sbtProject not found"},
+		{"scala: {server: always}", `scala.server "always" is not one of reuse, start, off`},
 	} {
 		_, err := Parse(strings.NewReader(c.yaml))
 		if err == nil || !strings.Contains(err.Error(), c.want) {
@@ -98,7 +99,7 @@ func TestLangAndScalaOptions(t *testing.T) {
 	if lang := none.ProjectLang(dir); lang != analysis.LangScala {
 		t.Errorf("sbt build: %s", lang)
 	}
-	c, err := Parse(strings.NewReader("lang: go\nscala: {extractor: bin/icb-scala, sbt: sbtn, projects: [backend]}\n" +
+	c, err := Parse(strings.NewReader("lang: go\nscala: {extractor: bin/icb-scala, sbt: sbtn, projects: [backend], server: off}\n" +
 		"auth: {guards: [{func: app.RouteSupport.authenticated}, {func: app.RouteSupport.staff, role: admin}]}\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +116,7 @@ func TestLangAndScalaOptions(t *testing.T) {
 	opts := c.ScalaOptions()
 	wantGuards := map[string]string{"app.RouteSupport.authenticated": "authenticated", "app.RouteSupport.staff": "admin"}
 	if opts.Extractor != "bin/icb-scala" || opts.SBT != "sbtn" || !slices.Equal(opts.Projects, []string{"backend"}) ||
-		!maps.Equal(opts.Guards, wantGuards) {
+		opts.Server != scala.ServerOff || !maps.Equal(opts.Guards, wantGuards) {
 		t.Errorf("scala options = %+v", opts)
 	}
 	if !reflect.DeepEqual(none.ScalaOptions(), scala.Options{}) {

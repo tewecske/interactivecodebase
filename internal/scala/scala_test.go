@@ -1,6 +1,9 @@
 package scala
 
 import (
+	"net"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -63,5 +66,53 @@ func TestTail(t *testing.T) {
 	long := strings.Repeat("line\n", 30) + "last"
 	if got := tail([]byte(long)); strings.Count(got, "\n") != 20 || !strings.HasSuffix(got, "last") {
 		t.Errorf("tail = %q", got)
+	}
+}
+
+func TestClientArgs(t *testing.T) {
+	if got := clientArgs(nil, false); !reflect.DeepEqual(got, []string{"--client", "--no-server", "export Compile/fullClasspath"}) {
+		t.Errorf("clientArgs(nil, false) = %v", got)
+	}
+	want := []string{"--client", "; export backend/Compile/fullClasspath ; export frontend/Compile/fullClasspath"}
+	if got := clientArgs([]string{"backend", "frontend"}, true); !reflect.DeepEqual(got, want) {
+		t.Errorf("clientArgs(projects, true) = %v", got)
+	}
+}
+
+func TestClientUnavailable(t *testing.T) {
+	for out, want := range map[string]bool{
+		"[error] no sbt server is running (sbt.server.autostart=false)\n": true,
+		"": true,
+		"[info] compiling 1 Scala source\n[error] -- [E103] Syntax Error: Main.scala\n[error] one error found\n": false,
+	} {
+		if got := clientUnavailable([]byte(out)); got != want {
+			t.Errorf("clientUnavailable(%q) = %v", out, got)
+		}
+	}
+}
+
+func TestServerRunning(t *testing.T) {
+	dir := t.TempDir()
+	if ServerRunning(dir) {
+		t.Error("no active.json")
+	}
+	sock := filepath.Join(t.TempDir(), "sock")
+	active := filepath.Join(dir, "project", "target", "active.json")
+	if err := os.MkdirAll(filepath.Dir(active), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(active, []byte(`{"uri":"local://`+sock+`"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if ServerRunning(dir) {
+		t.Error("stale active.json counts as a running server")
+	}
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skipf("no unix sockets: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+	if !ServerRunning(dir) {
+		t.Error("server listening on the socket not found")
 	}
 }
