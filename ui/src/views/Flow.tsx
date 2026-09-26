@@ -6,6 +6,7 @@ import { MermaidView } from "../components/Mermaid";
 import { href, navigate, nodeHref } from "../router";
 import type { Theme } from "../theme";
 import { useAsync } from "../useAsync";
+import { InlineFlow } from "./InlineFlow";
 
 const prunes = [
   { key: "sinks", label: "paths to SQL / files / APIs" },
@@ -14,13 +15,14 @@ const prunes = [
 ];
 
 // FlowView shows what a route does, down to SQL, files and external
-// systems: a sequence diagram with numbered steps, or the call tree.
+// systems: a sequence diagram with numbered steps, the call tree, or the
+// code of every call inlined.
 export function FlowView({ params, theme }: { params: Record<string, string>; theme: Theme }) {
   const route = params.route;
   const isEntry = route.startsWith("entry:");
   const prune = params.prune ?? "sinks";
   const method = params.method ?? "";
-  const mode = params.mode === "tree" ? "tree" : "sequence";
+  const mode = params.mode === "tree" || params.mode === "inline" ? params.mode : "sequence";
   const set = (p: Record<string, string | undefined>) => navigate("flow", { route, prune, method: method || undefined, mode, ...p });
   const diagram = useAsync(() => api.diagram("flow", { route, prune, method: method || undefined }), [route, prune, method]);
   const tree = useAsync(() => api.flow(route, method || undefined, prune), [route, prune, method]);
@@ -42,6 +44,9 @@ export function FlowView({ params, theme }: { params: Record<string, string>; th
         <div className="segmented">
           <button className={mode === "sequence" ? "on" : ""} onClick={() => set({ mode: "sequence" })}>Sequence</button>
           <button className={mode === "tree" ? "on" : ""} onClick={() => set({ mode: "tree" })}>Call tree</button>
+          <button className={mode === "inline" ? "on" : ""} onClick={() => set({ mode: "inline" })} title="Every call's code inlined under the line that makes it">
+            Inlined
+          </button>
         </div>
         {mode === "tree" && (
           <div className="segmented">
@@ -91,6 +96,8 @@ export function FlowView({ params, theme }: { params: Record<string, string>; th
             </div>
           )}
         </Loaded>
+      ) : mode === "inline" ? (
+        <Loaded state={tree}>{(t) => <InlineFlow root={t} theme={theme} />}</Loaded>
       ) : (
         <Loaded state={tree}>
           {(t) => (

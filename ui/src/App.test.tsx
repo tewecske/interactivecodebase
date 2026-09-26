@@ -260,6 +260,22 @@ describe("App", () => {
     expect(tree.querySelectorAll(".snippet")).toHaveLength(1);
   });
 
+  it("inlines each call's code under the line that makes it", async () => {
+    mockFetch();
+    const el = await render("#/flow?" + new URLSearchParams({ route: "POST /{lang}/notes", mode: "inline" }));
+    await act(async () => new Promise((r) => setTimeout(r, 0)));
+    const outer = el.querySelector(".inline-flow > .inline-block.depth-0")!;
+    expect(outer.querySelector(".inline-head")?.textContent).toContain("POST /{lang}/notes→method (*noteHandler).create");
+    const lines = [...outer.querySelectorAll(":scope > .inline-body > .code > *")];
+    // The sink's box comes right after line 89, which calls it, headed by the call.
+    expect(lines.map((l) => (l.classList.contains("inline-block") ? "box" : l.textContent?.slice(0, 2)))).toEqual(["88", "89", "box", "90"]);
+    const inner = lines[2];
+    expect(inner.classList.contains("depth-1")).toBe(true);
+    expect(inner.querySelector(".inline-call")?.textContent).toBe("h.tx.ExecContext(ctx, q)");
+    expect(inner.textContent).toContain("INSERT INTO audit_events");
+    expect(inner.textContent).toContain("insert table audit_events");
+  });
+
   it("shows highlighted code with identifiers linked to definitions", async () => {
     mockFetch();
     const el = await render("#/code?" + new URLSearchParams({ file: "internal/web/handlers.go", line: "3" }));
