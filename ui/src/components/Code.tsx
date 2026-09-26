@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ThemedToken } from "@shikijs/types";
 import { api, ApiError, type LspLocation, type Ref } from "../api";
 import { langFor, tokenize } from "../highlight";
@@ -8,7 +8,8 @@ import { useAsync } from "../useAsync";
 
 // Code shows lines [from, to] of a module file, highlighted, with the
 // lines in [markFrom, markTo] and those in marks marked and identifiers
-// linked to their definitions.
+// linked to their definitions. after renders what goes below a line, given
+// the source shown.
 export function Code({
   file,
   from = 1,
@@ -16,6 +17,7 @@ export function Code({
   markFrom,
   markTo,
   marks,
+  after,
   theme,
   scrollToMark,
 }: {
@@ -25,6 +27,7 @@ export function Code({
   markFrom?: number;
   markTo?: number;
   marks?: number[];
+  after?: (line: number, source: { start: number; lines: string[] }) => ReactNode;
   theme: Theme;
   scrollToMark?: boolean;
 }) {
@@ -87,13 +90,22 @@ export function Code({
         const n = start + i;
         const isMarked = (markFrom !== undefined && n >= markFrom && n <= (markTo ?? markFrom)) || !!marks?.includes(n);
         const isFirstMark = n === markFrom;
-        return (
+        const line = (
           <div key={n} ref={isFirstMark ? marked : undefined} className={`line${isMarked ? " marked" : ""}`}>
             <a className="ln" href={href("code", { file, line: String(n) })}>
               {n}
             </a>
             <span className="src">{renderLine(text, tokens?.[i], byLine.get(n) ?? [], lsp)}</span>
           </div>
+        );
+        const below = after?.(n, source.data);
+        return below ? (
+          <Fragment key={n}>
+            {line}
+            {below}
+          </Fragment>
+        ) : (
+          line
         );
       })}
       {source.data.end < source.data.total && to === undefined && <p className="muted">… file truncated at {source.data.end} lines</p>}
